@@ -13,10 +13,13 @@ class ApiService {
     static let shared = ApiService()
     
     let url: String = "https://brapi.dev/api/v2"
+    let limtit: Int = 50
     
-    func getAllTickers(for page: Int,completion: @escaping (Result<StockListResponse, CotlaError>) -> Void) {
+    func getAllTickers(for page: Int, isFirstPage: Bool, completion: @escaping (Result<StockListResponse, CotlaError>) -> Void) {
         
-        let url = URL(string: "\(self.url)/tickers")!
+        print(page)
+        
+        let url = URL(string: "\(self.url)/tickers?page=\(page)&limit=\(self.limtit)")!
         
         URLSession.shared.dataTask(with: url) { data, response, error in
             guard let data = data else {

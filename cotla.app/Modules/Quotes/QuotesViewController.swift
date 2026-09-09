@@ -54,6 +54,7 @@ class QuotesViewController: UIViewController, QuotesViewProtocol {
         tableView.estimatedRowHeight                        = 64
         tableView.separatorStyle                            = .none
         tableView.translatesAutoresizingMaskIntoConstraints = false
+        tableView.delegate                                  = self
         
         view.addSubview(tableView)
 
@@ -69,6 +70,16 @@ class QuotesViewController: UIViewController, QuotesViewProtocol {
         self.tickers = tickers.results
         tableView.reloadData()
     }
+    
+    func appendTickers(_ newTickers: [StockEntity]) {
+        let startIndex  = tickers.count
+        
+        tickers.append(contentsOf: newTickers)
+
+        let indexPaths  = (startIndex..<tickers.count).map { IndexPath(row: $0, section: 0) }
+        
+        tableView.insertRows(at: indexPaths, with: .none)
+    }
 
     func displayError(message: String) {
         print(message)
@@ -76,7 +87,7 @@ class QuotesViewController: UIViewController, QuotesViewProtocol {
 }
 
 
-extension QuotesViewController: UITableViewDataSource {
+extension QuotesViewController: UITableViewDataSource, UITableViewDelegate {
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
         tickers.count
     }
@@ -87,5 +98,9 @@ extension QuotesViewController: UITableViewDataSource {
         }
         cell.configure(with: tickers[indexPath.row])
         return cell
+    }
+    
+    func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath){
+        presenter.loadNextPageIfNeeded(currentIndex: indexPath.row, totalCount: tickers.count)
     }
 }
