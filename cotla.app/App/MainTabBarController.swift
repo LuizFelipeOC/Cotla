@@ -18,12 +18,17 @@ class MainTabBarController: UITabBarController {
     
     
     private func configureTabBarNavigation() {
-        let quoetesVC = QuotesViewController()
+        let quotesVC                = QuotesViewController()
+        let quoteInteractor         = QuotesInteractor()
+        let quotePresenter          = QuotesPresenter(view: quotesVC, interactor: quoteInteractor)
         
-        quoetesVC.tabBarItem = UITabBarItem(title: "Cotações", image: UIImage(systemName: "chart.bar"), tag: 0)
+        quoteInteractor.presenter   = quotePresenter
+        quotesVC.presenter          = quotePresenter
+        
+        quotesVC.tabBarItem         = UITabBarItem(title: "Cotações", image: UIImage(systemName: "chart.bar"), tag: 0)
         
         viewControllers = [
-            UINavigationController(rootViewController: quoetesVC)
+            UINavigationController(rootViewController: quotesVC)
         ]
     }
     

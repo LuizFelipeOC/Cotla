@@ -7,22 +7,85 @@
 
 import UIKit
 
-class QuotesViewController: UIViewController {
+class QuotesViewController: UIViewController, QuotesViewProtocol {
     
+    var presenter: QuotesPresenterProtocol!
+    
+    private var tickers: [StockEntity] = []
+    private let tableView = UITableView()
+
     override func viewDidLoad() {
         super.viewDidLoad()
+        
         configure()
+        configureTableView()
+
+        presenter.viewDidLoad()
     }
-    
+
     private func configure() {
         view.backgroundColor = .systemBackground
-        
         configureHeader()
-}
-    
+    }
+
     private func configureHeader() {
         title = "Cotações"
-        navigationController?.navigationBar.prefersLargeTitles = true
-        navigationItem.largeTitleDisplayMode = .always
+        navigationController?.navigationBar.prefersLargeTitles          = true
+        navigationItem.largeTitleDisplayMode                            = .automatic
+        navigationController?.hidesBarsOnSwipe                          = false
+        navigationController?.setNavigationBarHidden(false, animated: false)
+        
+        let appearance = UINavigationBarAppearance()
+        appearance.configureWithOpaqueBackground()
+        appearance.backgroundColor                                      = .systemBackground
+        appearance.shadowColor                                          = .clear
+        appearance.titleTextAttributes                                  = [.foregroundColor: UIColor.label]
+        appearance.largeTitleTextAttributes                             = [.foregroundColor: UIColor.label]
+        
+        navigationController?.navigationBar.standardAppearance          = appearance
+        navigationController?.navigationBar.scrollEdgeAppearance        = appearance
+        navigationController?.navigationBar.compactAppearance           = appearance
+    }
+    
+    private func configureTableView() {
+        tableView.dataSource                                 = self
+        tableView.register(TickerCell.self, forCellReuseIdentifier: TickerCell.reuseIdentifier)
+        tableView.rowHeight                                 = UITableView.automaticDimension
+        tableView.estimatedRowHeight                        = 64
+        tableView.separatorStyle                            = .none
+        tableView.translatesAutoresizingMaskIntoConstraints = false
+        
+        view.addSubview(tableView)
+
+        NSLayoutConstraint.activate([
+            tableView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            tableView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        ])
+    }
+
+    func display(tickers: StockListResponse) {
+        self.tickers = tickers.results
+        tableView.reloadData()
+    }
+
+    func displayError(message: String) {
+        print(message)
+    }
+}
+
+
+extension QuotesViewController: UITableViewDataSource {
+    func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
+        tickers.count
+    }
+
+    func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
+        guard let cell = tableView.dequeueReusableCell(withIdentifier: TickerCell.reuseIdentifier, for: indexPath) as? TickerCell else {
+            return UITableViewCell()
+        }
+        cell.configure(with: tickers[indexPath.row])
+        return cell
     }
 }
