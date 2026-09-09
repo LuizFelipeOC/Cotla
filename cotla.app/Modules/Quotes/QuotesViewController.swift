@@ -7,7 +7,7 @@
 
 import UIKit
 
-class QuoetesViewController: UIViewController {
+class QuotesViewController: UIViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
