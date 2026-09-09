@@ -18,7 +18,7 @@ class MainTabBarController: UITabBarController {
     
     
     private func configureTabBarNavigation() {
-        let quoetesVC = QuoetesViewController()
+        let quoetesVC = QuotesViewController()
         
         quoetesVC.tabBarItem = UITabBarItem(title: "Cotações", image: UIImage(systemName: "chart.bar"), tag: 0)
         

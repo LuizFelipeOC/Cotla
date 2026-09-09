@@ -18,7 +18,7 @@ class QuotesViewController: UIViewController {
         view.backgroundColor = .systemBackground
         
         configureHeader()
-    }
+}
     
     private func configureHeader() {
         title = "Cotações"
