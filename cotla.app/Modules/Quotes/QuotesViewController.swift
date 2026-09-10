@@ -12,20 +12,24 @@ class QuotesViewController: UIViewController, QuotesViewProtocol {
     var presenter: QuotesPresenterProtocol!
     
     private var tickers: [StockEntity] = []
-    private let tableView = UITableView()
-
+    private var isSearching: Bool      = false
+    private var searchTask: Task<Void, Never>?
+    
+    private let tableView        = UITableView()
+    private let searchController = UISearchController(searchResultsController: nil)
+    
     override func viewDidLoad() {
         super.viewDidLoad()
-        
         configure()
-        configureTableView()
-
+        
         presenter.viewDidLoad()
     }
 
     private func configure() {
         view.backgroundColor = .systemBackground
         configureHeader()
+        configureSearchBar()
+        configureTableView()
     }
 
     private func configureHeader() {
@@ -45,6 +49,18 @@ class QuotesViewController: UIViewController, QuotesViewProtocol {
         navigationController?.navigationBar.standardAppearance          = appearance
         navigationController?.navigationBar.scrollEdgeAppearance        = appearance
         navigationController?.navigationBar.compactAppearance           = appearance
+    }
+    
+    private func configureSearchBar() {
+        searchController.searchResultsUpdater                 = self
+        
+        searchController.obscuresBackgroundDuringPresentation = false
+                    
+        searchController.searchBar.placeholder                = "Buscar ativo..."
+        
+        navigationItem.hidesSearchBarWhenScrolling            = true
+        definesPresentationContext                            = true
+        navigationItem.searchController = searchController
     }
     
     private func configureTableView() {
@@ -101,6 +117,21 @@ extension QuotesViewController: UITableViewDataSource, UITableViewDelegate {
     }
     
     func tableView(_ tableView: UITableView, willDisplay cell: UITableViewCell, forRowAt indexPath: IndexPath){
+        guard !isSearching else {return }
+        
         presenter.loadNextPageIfNeeded(currentIndex: indexPath.row, totalCount: tickers.count)
+    }
+}
+
+extension QuotesViewController: UISearchResultsUpdating {
+    func updateSearchResults(for searchController: UISearchController) {
+        let query = searchController.searchBar.text?.trimmingCharacters(in: .whitespaces) ?? ""
+        
+        searchTask?.cancel()
+        searchTask = Task {
+            try? await Task.sleep(nanoseconds: 400_000_000)
+            guard !Task.isCancelled else { return }
+            presenter.search(query: query)
+        }
     }
 }

@@ -8,44 +8,35 @@
 import Foundation
 
 
+protocol ApiServiceProtocol {
+    func getAllTickers(for page: Int, search: String) async throws -> StockListResponse
+}
 
-class ApiService {
+class ApiService: ApiServiceProtocol {
     static let shared = ApiService()
     
-    let url: String = "https://brapi.dev/api/v2"
-    let limtit: Int = 50
+    let baseUrl: String = "https://brapi.dev/api/v2"
+    let limit: Int = 50
     
-    func getAllTickers(for page: Int, isFirstPage: Bool, completion: @escaping (Result<StockListResponse, CotlaError>) -> Void) {
-        
-        print(page)
-        
-        let url = URL(string: "\(self.url)/tickers?page=\(page)&limit=\(self.limtit)")!
-        
-        URLSession.shared.dataTask(with: url) { data, response, error in
-            guard let data = data else {
-                completion(.failure(.invalidURL))
-                return
-            }
-            
-           URLSession.shared.dataTask(with: url) { data, response, error in
-                if let _ = error {
-                   return completion(.failure(.invalidData))
-                }
-                
-                guard let response = response as? HTTPURLResponse, response.statusCode == 200 else {
-                   return completion(.failure(.invalidResponse))
-                }
-            }
-            
-            do {
-                let decoder                             = JSONDecoder()
-                let stocks: StockListResponse           = try decoder.decode(StockListResponse.self, from: data)
-                return completion(.success(stocks))
-            }
-            catch {
-                completion(.failure(.decodingFailed))
-            }
+    
+    func getAllTickers(for page: Int, search: String) async throws -> StockListResponse {
+        guard let url = URL(string: "\(baseUrl)/tickers?page=\(page)&limit=\(limit)&search=\(search)") else {
+            throw CotlaError.invalidURL
         }
-        .resume()
+        
+        let (data, response) = try await URLSession.shared.data(from: url)
+        
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw CotlaError.invalidResponse
+        }
+        
+        let decoder = JSONDecoder()
+        
+        do {
+            return try decoder.decode(StockListResponse.self, from: data)
+        } catch {
+            throw CotlaError.decodingFailed
+        }
     }
+    
 }

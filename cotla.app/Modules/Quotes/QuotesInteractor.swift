@@ -10,7 +10,7 @@ import Foundation
 
 
 protocol QuotesInteractorProtocol: AnyObject {
-    func getTickers(page: Int, isFirstPage: Bool)
+    func getTickers(page: Int, search: String, isFirstPage: Bool)
 }
 
 protocol QuotesInteractorOutputProtocol: AnyObject {
@@ -20,16 +20,23 @@ protocol QuotesInteractorOutputProtocol: AnyObject {
 
 class QuotesInteractor: QuotesInteractorProtocol {
     weak var presenter: QuotesInteractorOutputProtocol?
+    
+    private let apiService: ApiServiceProtocol
+    
+    init(apiService: ApiServiceProtocol) {
+        self.apiService = apiService
+    }
 
-    func getTickers(page: Int, isFirstPage: Bool) {
-        ApiService.shared.getAllTickers(for: page, isFirstPage: isFirstPage) { [weak self] result in
-            guard let self else { return }
-
-            DispatchQueue.main.async {
-                switch result {
-                case .success(let tickers):
-                    self.presenter?.onFetchSuccess(response: tickers, isFirstPage: isFirstPage)
-                case .failure(let error):
+    func getTickers(page: Int, search: String,isFirstPage: Bool) {
+        Task {
+            do {
+                let response = try await apiService.getAllTickers(for: page, search: search)
+                
+                await MainActor.run {
+                    self.presenter?.onFetchSuccess(response:response, isFirstPage: isFirstPage)
+                }
+            } catch {
+                await MainActor.run {
                     self.presenter?.onFetchError(error: error)
                 }
             }

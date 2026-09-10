@@ -10,6 +10,7 @@ import Foundation
 protocol QuotesPresenterProtocol: AnyObject {
     func viewDidLoad()
     func loadNextPageIfNeeded(currentIndex: Int, totalCount: Int)
+    func search(query: String)
 }
 
 protocol QuotesViewProtocol: AnyObject {
@@ -22,9 +23,10 @@ class QuotesPresenter: QuotesPresenterProtocol, QuotesInteractorOutputProtocol {
     weak var view: QuotesViewProtocol?
     var interactor: QuotesInteractorProtocol
     
-    private var currentPage = 1
-    private var hasNextPage   = true
-    private var isLoadingPage = false
+    private var currentPage           = 1
+    private var hasNextPage           = true
+    private var isLoadingPage         = false
+    private var currentSearch: String = ""
 
 
     init(view: QuotesViewProtocol, interactor: QuotesInteractorProtocol) {
@@ -35,7 +37,7 @@ class QuotesPresenter: QuotesPresenterProtocol, QuotesInteractorOutputProtocol {
     private func loadPage(isFirstPage: Bool) {
         isLoadingPage = true
         if isFirstPage { LoadingOverlay.shared.show() }
-        interactor.getTickers(page: currentPage, isFirstPage: isFirstPage)
+        interactor.getTickers(page: currentPage, search: currentSearch, isFirstPage: isFirstPage)
     }
 
     func viewDidLoad() {
@@ -43,9 +45,10 @@ class QuotesPresenter: QuotesPresenterProtocol, QuotesInteractorOutputProtocol {
     }
     
     func loadNextPageIfNeeded(currentIndex: Int, totalCount: Int) {
-         let thresholdReached = currentIndex >= totalCount - 5
-         guard thresholdReached, hasNextPage, !isLoadingPage else { return }
-         loadPage(isFirstPage: false)
+        guard  totalCount > 0, currentIndex == totalCount - 1 else { return }
+        guard  hasNextPage, !isLoadingPage else { return }
+        
+        loadPage(isFirstPage: false)
      }
     
      func onFetchSuccess(response: StockListResponse, isFirstPage: Bool) {
@@ -58,6 +61,13 @@ class QuotesPresenter: QuotesPresenterProtocol, QuotesInteractorOutputProtocol {
         } else {
             view?.appendTickers(response.results)
         }
+    }
+    
+    func search(query: String) {
+        currentSearch   = query.isEmpty ? "" : query
+        currentPage     = 1
+        hasNextPage     = true
+        loadPage(isFirstPage: true)
     }
 
     func onFetchError(error: Error) {
