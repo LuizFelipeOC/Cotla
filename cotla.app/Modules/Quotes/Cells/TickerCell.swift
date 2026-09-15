@@ -6,21 +6,25 @@
 //
 
 import UIKit
-import SDWebImage
 
 class TickerCell: UITableViewCell {
 
     static let reuseIdentifier = "TickerCell"
 
-    private let cardView = UIView()
-    private let logoImageView = UIImageView()
-    private let tickerLabel = UILabel()
-    private let nameLabel = UILabel()
-    private let priceLabel = UILabel()
-    private let changeBadge = UILabel()
+    private let cardView      = CardView()
+    private let logoImageView = StockImageView()
+    private let tickerLabel   = TitleLabelView(textAligment: .left, fontSize: 18)
+    private let nameLabel     = SecondayLabelView(textAligment: .left, fontSize: 14)
+    private let priceLabel    = SecondayLabelView(textAligment: .right, fontSize: 16)
+    private let changeBadge   = SecondayLabelView(textAligment: .center, fontSize: 12)
+    
+    private var textStack     = UIStackView()
+    private var valueStack     = UIStackView()
+    private var mainStack     = UIStackView()
 
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
+        
         setupViews()
     }
 
@@ -28,66 +32,75 @@ class TickerCell: UITableViewCell {
         fatalError("init(coder:) has not been implemented")
     }
 
-    override func prepareForReuse() {
-        super.prepareForReuse()
-        logoImageView.sd_cancelCurrentImageLoad()
-        logoImageView.image = nil
-    }
+    func configure(with ticker: StockEntity) {
+        tickerLabel.text = ticker.symbol
+        nameLabel.text = ticker.longName
+        priceLabel.text = String(format: "R$ %.2f", ticker.quote.lastPrice)
 
-    private func setupViews() {
+        let change = ticker.quote.changePercent
+        changeBadge.text = String(format: "%@%.2f%%", change >= 0 ? "+" : "", change)
+
+        let color: UIColor = change >= 0 ? .systemGreen : .systemRed
+        changeBadge.textColor = color
+        changeBadge.backgroundColor = color.withAlphaComponent(0.15)
+        
+        logoImageView.setImage(for: ticker.logoUrl)
+    }
+    
+    
+    private func configureTableCellView() {
         selectionStyle = .none
         backgroundColor = .clear
         contentView.backgroundColor = .clear
         clipsToBounds = false
         contentView.clipsToBounds = false
+    }
 
-        cardView.backgroundColor = .secondarySystemGroupedBackground
-        cardView.layer.cornerRadius = 18
-        cardView.layer.cornerCurve = .continuous
-        cardView.layer.shadowColor = UIColor.black.cgColor
-        cardView.layer.shadowOpacity = 0.08
-        cardView.layer.shadowRadius = 8
-        cardView.layer.shadowOffset = CGSize(width: 0, height: 4)
-        cardView.translatesAutoresizingMaskIntoConstraints = false
+    private func setupViews() {
+        
+        configureTableCellView()
+        configureChangeTextView()
+        configureTextStackView()
+        configureValueStackView()
+        configureMainStackView()
+
+        
+        cardView.addSubview(mainStack)
         contentView.addSubview(cardView)
-
-        logoImageView.contentMode = .scaleAspectFit
-        logoImageView.layer.cornerRadius = 10
-        logoImageView.clipsToBounds = true
-        logoImageView.backgroundColor = .tertiarySystemGroupedBackground
-        logoImageView.translatesAutoresizingMaskIntoConstraints = false
-
-        tickerLabel.font = .systemFont(ofSize: 16, weight: .bold)
-
-        nameLabel.font = .systemFont(ofSize: 12, weight: .regular)
-        nameLabel.textColor = .secondaryLabel
-        nameLabel.numberOfLines = 1
-
-        priceLabel.font = .monospacedDigitSystemFont(ofSize: 16, weight: .semibold)
-        priceLabel.textAlignment = .right
-
-        changeBadge.font = .systemFont(ofSize: 12, weight: .bold)
-        changeBadge.textAlignment = .center
+        
+        setupLayoutConstrains()
+    }
+    
+    func configureChangeTextView() {
         changeBadge.layer.cornerRadius = 8
         changeBadge.layer.cornerCurve = .continuous
         changeBadge.clipsToBounds = true
-
-        let textStack = UIStackView(arrangedSubviews: [tickerLabel, nameLabel])
-        textStack.axis = .vertical
-        textStack.spacing = 2
-
-        let valueStack = UIStackView(arrangedSubviews: [priceLabel, changeBadge])
-        valueStack.axis = .vertical
-        valueStack.spacing = 4
-        valueStack.alignment = .trailing
-
-        let mainStack = UIStackView(arrangedSubviews: [logoImageView, textStack, valueStack])
+    }
+    
+    func configureTextStackView() {
+        textStack           = UIStackView(arrangedSubviews: [tickerLabel, nameLabel])
+        
+        textStack.axis      = .vertical
+        textStack.spacing   = 2
+    }
+    
+    func configureValueStackView() {
+        valueStack              = UIStackView(arrangedSubviews: [priceLabel, changeBadge])
+        valueStack.axis         = .vertical
+        valueStack.spacing      = 4
+        valueStack.alignment    = .trailing
+    }
+    
+    
+    func configureMainStackView() {
+        mainStack = UIStackView(arrangedSubviews: [logoImageView, textStack, valueStack])
         mainStack.axis = .horizontal
         mainStack.alignment = .center
         mainStack.spacing = 12
         mainStack.translatesAutoresizingMaskIntoConstraints = false
-        cardView.addSubview(mainStack)
-
+    }
+    
+    func setupLayoutConstrains() {
         NSLayoutConstraint.activate([
             cardView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 6),
             cardView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -6),
@@ -105,23 +118,5 @@ class TickerCell: UITableViewCell {
             changeBadge.widthAnchor.constraint(greaterThanOrEqualToConstant: 56),
             changeBadge.heightAnchor.constraint(equalToConstant: 20)
         ])
-    }
-
-    func configure(with ticker: StockEntity) {
-        tickerLabel.text = ticker.symbol
-        nameLabel.text = ticker.longName
-        priceLabel.text = String(format: "R$ %.2f", ticker.quote.lastPrice)
-
-        let change = ticker.quote.changePercent
-        changeBadge.text = String(format: "%@%.2f%%", change >= 0 ? "+" : "", change)
-
-        let color: UIColor = change >= 0 ? .systemGreen : .systemRed
-        changeBadge.textColor = color
-        changeBadge.backgroundColor = color.withAlphaComponent(0.15)
-
-        logoImageView.sd_setImage(
-            with: URL(string: ticker.logoUrl),
-            placeholderImage: UIImage(systemName: "chart.bar.fill")
-        )
     }
 }
