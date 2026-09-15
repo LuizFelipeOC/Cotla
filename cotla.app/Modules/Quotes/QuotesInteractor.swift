@@ -7,8 +7,6 @@
 
 import Foundation
 
-
-
 protocol QuotesInteractorProtocol: AnyObject {
     func getTickers(page: Int, search: String, isFirstPage: Bool)
 }
