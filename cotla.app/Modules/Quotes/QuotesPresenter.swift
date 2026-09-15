@@ -11,6 +11,7 @@ protocol QuotesPresenterProtocol: AnyObject {
     func viewDidLoad()
     func loadNextPageIfNeeded(currentIndex: Int, totalCount: Int)
     func search(query: String)
+    func didSelectTicker(_ ticker: StockEntity)
 }
 
 protocol QuotesViewProtocol: AnyObject {
@@ -27,11 +28,14 @@ class QuotesPresenter: QuotesPresenterProtocol, QuotesInteractorOutputProtocol {
     private var hasNextPage           = true
     private var isLoadingPage         = false
     private var currentSearch: String = ""
+    
+    var router: QuoteRouter
 
 
-    init(view: QuotesViewProtocol, interactor: QuotesInteractorProtocol) {
+    init(view: QuotesViewProtocol, interactor: QuotesInteractorProtocol, router: QuoteRouter) {
         self.view = view
         self.interactor = interactor
+        self.router = router
     }
     
     private func loadPage(isFirstPage: Bool) {
@@ -73,5 +77,9 @@ class QuotesPresenter: QuotesPresenterProtocol, QuotesInteractorOutputProtocol {
     func onFetchError(error: Error) {
         LoadingOverlay.shared.hide()
         view?.displayError(message: "Não foi possível carregar as cotações")
+    }
+    
+    func didSelectTicker(_ ticker: StockEntity) {
+        router.navigateToQuoteDetail(of: ticker)
     }
 }

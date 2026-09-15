@@ -19,7 +19,10 @@ class MainTabBarController: UITabBarController {
     private func configureTabBarNavigation() {
         let quotesVC                = QuotesViewController()
         let quoteInteractor         = QuotesInteractor(apiService: ApiService.shared)
-        let quotePresenter          = QuotesPresenter(view: quotesVC, interactor: quoteInteractor)
+        let quoteRouter             = QuoteRouter()
+        let quotePresenter          = QuotesPresenter(view: quotesVC, interactor: quoteInteractor, router: quoteRouter)
+        
+        quoteRouter.viewController  = quotesVC
         
         quoteInteractor.presenter   = quotePresenter
         quotesVC.presenter          = quotePresenter

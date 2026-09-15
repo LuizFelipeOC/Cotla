@@ -116,6 +116,7 @@
             guard let cell = tableView.dequeueReusableCell(withIdentifier: TickerCell.reuseIdentifier, for: indexPath) as? TickerCell else {
                 return UITableViewCell()
             }
+            
             cell.configure(with: tickers[indexPath.row])
             return cell
         }
@@ -124,6 +125,11 @@
             guard !isSearching else {return }
             
             presenter.loadNextPageIfNeeded(currentIndex: indexPath.row, totalCount: tickers.count)
+        }
+        
+        func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+            tableView.deselectRow(at: indexPath, animated: true)
+            presenter.didSelectTicker(tickers[indexPath.row])
         }
     }
 
