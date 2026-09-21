@@ -61,33 +61,45 @@ class QuotesViewController: UIViewController, QuotesViewProtocol {
         searchController.searchBar.placeholder                      = "Buscar ativo..."
         searchController.searchBar.searchBarStyle                   = .minimal
         
-        searchController.navigationItem.preferredSearchBarPlacement = .stacked
+        navigationItem.preferredSearchBarPlacement                  = .stacked
         
         navigationItem.hidesSearchBarWhenScrolling            = false
         definesPresentationContext                            = true
         navigationItem.searchController = searchController
     }
     
+    private lazy var refreshControl: UIRefreshControl = {
+        let control = UIRefreshControl()
+        control.tintColor = UIColor(named: "BrandGreen")
+        control.addTarget(self, action: #selector(handleRefresh), for: .valueChanged)
+        return control
+    }()
+
     private lazy var tickersTableView: UITableView = {
         let tableView = UITableView()
-        
+
         tableView.dataSource                                = self
         tableView.delegate                                  = self
-        
+
         tableView.register(TickerCell.self, forCellReuseIdentifier: TickerCell.reuseIdentifier)
         tableView.rowHeight                                 = UITableView.automaticDimension
         tableView.estimatedRowHeight                        = 64
         tableView.separatorStyle                            = .none
         tableView.backgroundColor                           = .systemBackground
-        
+        tableView.refreshControl                            = refreshControl
+
         tableView.translatesAutoresizingMaskIntoConstraints = false
-        
+
         return tableView
     }()
+
+    @objc private func handleRefresh() {
+        presenter.refresh()
+    }
     
     private func setupLayoutConstrains() {
         NSLayoutConstraint.activate([
-            tickersTableView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            tickersTableView.topAnchor.constraint(equalTo: view.topAnchor),
             tickersTableView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             tickersTableView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             tickersTableView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
@@ -111,6 +123,10 @@ class QuotesViewController: UIViewController, QuotesViewProtocol {
     
     func displayError(message: String) {
         print(message)
+    }
+
+    func endRefreshing() {
+        refreshControl.endRefreshing()
     }
 }
 
