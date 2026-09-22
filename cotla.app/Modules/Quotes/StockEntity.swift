@@ -17,6 +17,7 @@ nonisolated class StockEntity: Decodable {
     let longName: String
     let assetType: String
     let sector: String?
+    let subsector: String?
     let logoUrl: String
     let quote: QuoteEntity
 }

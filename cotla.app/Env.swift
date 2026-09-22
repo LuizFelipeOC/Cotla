@@ -1,11 +1,7 @@
 import Foundation
 
 enum AppConfig {
-    static let brapiToken: String = {
-        guard let token = ProcessInfo.processInfo.environment["BRAPI_TOKEN"] else {
-            fatalError("BRAPI_TOKEN environment variable is not set.")
-        }
-        
-        return token
-    }()
+    static var brapiToken: String {
+        Bundle.main.object(forInfoDictionaryKey: "BRAPI_TOKEN") as? String ?? ""
+    }
 }

@@ -35,7 +35,7 @@ class TickerCell: UITableViewCell {
     func configure(with ticker: StockEntity) {
         tickerLabel.text = ticker.symbol
         nameLabel.text = ticker.longName
-        priceLabel.text = String(format: "R$ %.2f", ticker.quote.lastPrice)
+        priceLabel.text = ticker.quote.lastPrice.asCurrency
 
         let change = ticker.quote.changePercent
         changeBadge.text = String(format: "%@%.2f%%", change >= 0 ? "+" : "", change)
