@@ -47,6 +47,10 @@ class QuoteDetailViewController: UIViewController, QuoteDetailViewProtocol {
         contentView.addSubview(chartCard)
         contentView.addSubview(dividendsCard)
 
+        dividendsCard.onShowMore = { [weak self] dividends in
+            self?.present(DividendsSheetViewController(dividends: dividends), animated: true)
+        }
+
         setupLayoutConstrains()
     }
 

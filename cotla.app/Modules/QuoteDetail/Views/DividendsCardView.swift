@@ -27,6 +27,13 @@ final class DividendsCardView: CardView {
     private let messageLabel     = SecondayLabelView(textAligment: .center, fontSize: 14)
     private let rowsStack        = UIStackView()
 
+    private static let collapsedCount = 5
+    private var dividends: [CashDividendEntity] = []
+
+    /// Quando `true`, lista todos os itens sem o botão "Ver mais" (usado na sheet).
+    var showsAll = false
+    var onShowMore: (([CashDividendEntity]) -> Void)?
+
     required init(frame: CGRect) {
         super.init(frame: frame)
         setupViews()
@@ -44,6 +51,7 @@ final class DividendsCardView: CardView {
     }
 
     func display(dividends: [CashDividendEntity]) {
+        self.dividends = dividends
         loadingIndicator.stopAnimating()
         rowsStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
 
@@ -57,13 +65,29 @@ final class DividendsCardView: CardView {
         messageLabel.isHidden = true
         rowsStack.isHidden    = false
 
-        for (index, dividend) in dividends.enumerated() {
+        let visible = showsAll ? dividends : Array(dividends.prefix(Self.collapsedCount))
+
+        for (index, dividend) in visible.enumerated() {
             if index > 0 {
                 rowsStack.addArrangedSubview(makeSeparator())
             }
 
             rowsStack.addArrangedSubview(makeRow(for: dividend))
         }
+
+        if visible.count < dividends.count {
+            rowsStack.addArrangedSubview(makeShowMoreButton())
+        }
+    }
+
+    private func makeShowMoreButton() -> UIButton {
+        var configuration   = UIButton.Configuration.plain()
+        configuration.title = "Ver mais"
+
+        return UIButton(configuration: configuration, primaryAction: UIAction { [weak self] _ in
+            guard let self else { return }
+            onShowMore?(dividends)
+        })
     }
 
     func displayError(message: String) {

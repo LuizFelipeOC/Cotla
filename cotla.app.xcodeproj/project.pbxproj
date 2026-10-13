@@ -6,6 +6,12 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		7046BC933058B78E004E8462 /* SDWebImage in Frameworks */ = {isa = PBXBuildFile; productRef = 7046BC923058B78E004E8462 /* SDWebImage */; };
+		7046BC953058B78E004E8462 /* SDWebImageMapKit in Frameworks */ = {isa = PBXBuildFile; productRef = 7046BC943058B78E004E8462 /* SDWebImageMapKit */; };
+		7046BC983058B7A4004E8462 /* SDWebImageSVGCoder in Frameworks */ = {isa = PBXBuildFile; productRef = 7046BC973058B7A4004E8462 /* SDWebImageSVGCoder */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXFileReference section */
 		7038A8A63050D2BD004638D6 /* cotla.app.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = cotla.app.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -36,6 +42,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				7046BC983058B7A4004E8462 /* SDWebImageSVGCoder in Frameworks */,
+				7046BC953058B78E004E8462 /* SDWebImageMapKit in Frameworks */,
+				7046BC933058B78E004E8462 /* SDWebImage in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -78,6 +87,9 @@
 			);
 			name = cotla.app;
 			packageProductDependencies = (
+				7046BC923058B78E004E8462 /* SDWebImage */,
+				7046BC943058B78E004E8462 /* SDWebImageMapKit */,
+				7046BC973058B7A4004E8462 /* SDWebImageSVGCoder */,
 			);
 			productName = cotla.app;
 			productReference = 7038A8A63050D2BD004638D6 /* cotla.app.app */;
@@ -107,6 +119,10 @@
 			);
 			mainGroup = 7038A89D3050D2BD004638D6;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				7046BC913058B78E004E8462 /* XCRemoteSwiftPackageReference "SDWebImage" */,
+				7046BC963058B7A4004E8462 /* XCRemoteSwiftPackageReference "SDWebImageSVGCoder" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 7038A8A73050D2BD004638D6 /* Products */;
 			projectDirPath = "";
@@ -140,6 +156,8 @@
 /* Begin XCBuildConfiguration section */
 		7038A8BA3050D2BF004638D6 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 7038A8A83050D2BD004638D6 /* cotla.app */;
+			baseConfigurationReferenceRelativePath = Secrets.xcconfig;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -171,6 +189,8 @@
 		};
 		7038A8BB3050D2BF004638D6 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReferenceAnchor = 7038A8A83050D2BD004638D6 /* cotla.app */;
+			baseConfigurationReferenceRelativePath = Secrets.xcconfig;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
@@ -343,6 +363,43 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		7046BC913058B78E004E8462 /* XCRemoteSwiftPackageReference "SDWebImage" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/SDWebImage/SDWebImage.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.21.7;
+			};
+		};
+		7046BC963058B7A4004E8462 /* XCRemoteSwiftPackageReference "SDWebImageSVGCoder" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/SDWebImage/SDWebImageSVGCoder";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.8.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		7046BC923058B78E004E8462 /* SDWebImage */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7046BC913058B78E004E8462 /* XCRemoteSwiftPackageReference "SDWebImage" */;
+			productName = SDWebImage;
+		};
+		7046BC943058B78E004E8462 /* SDWebImageMapKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7046BC913058B78E004E8462 /* XCRemoteSwiftPackageReference "SDWebImage" */;
+			productName = SDWebImageMapKit;
+		};
+		7046BC973058B7A4004E8462 /* SDWebImageSVGCoder */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7046BC963058B7A4004E8462 /* XCRemoteSwiftPackageReference "SDWebImageSVGCoder" */;
+			productName = SDWebImageSVGCoder;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 7038A89E3050D2BD004638D6 /* Project object */;
 }
