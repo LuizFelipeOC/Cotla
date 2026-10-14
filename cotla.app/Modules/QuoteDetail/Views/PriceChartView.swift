@@ -20,6 +20,9 @@ final class PriceChartView: UIView {
     private let yAxisWidth: CGFloat  = 48
     private let xAxisHeight: CGFloat = 24
 
+    /// Formato do eixo Y e do tooltip. nil mantém o padrão de preço (eixo sem símbolo, tooltip em R$).
+    var valueFormatter: ((Double) -> String)?
+
     private var points: [Point] = []
     private var lineColor: UIColor = .systemGreen
     private var priceDomain: ClosedRange<Double> = 0...1
@@ -252,7 +255,7 @@ final class PriceChartView: UIView {
             path.move(to: CGPoint(x: plot.minX, y: y))
             path.addLine(to: CGPoint(x: plot.maxX, y: y))
 
-            label.text     = value.asPrice
+            label.text     = valueFormatter?(value) ?? value.asPrice
             label.frame    = CGRect(x: plot.maxX + 4, y: y - 7, width: yAxisWidth - 4, height: 14)
             label.isHidden = false
         }
@@ -392,7 +395,7 @@ final class PriceChartView: UIView {
 
         CATransaction.commit()
 
-        tooltipPriceLabel.text = points[index].price.asCurrency
+        tooltipPriceLabel.text = valueFormatter?(points[index].price) ?? points[index].price.asCurrency
         tooltipDateLabel.text  = format(date: points[index].date, with: tooltipDateFormatter)
 
         let width   = max(tooltipPriceLabel.intrinsicContentSize.width, tooltipDateLabel.intrinsicContentSize.width) + 24

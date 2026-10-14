@@ -25,15 +25,25 @@ class QuoteDetailPresenter: QuoteDetailPresenterProtocol, QuoteDetailInteractorO
 
     private let symbol: String
     private let isFii: Bool
+    private let isCrypto: Bool
 
     init(view: QuoteDetailViewProtocol, interactor: QuoteDetailInteractorProtocol, symbol: String, assetType: String) {
         self.view       = view
         self.interactor = interactor
         self.symbol     = symbol
         self.isFii      = assetType == "fund"
+        self.isCrypto   = assetType == "crypto"
     }
 
     func viewDidLoad() {
+        // Histórico e dividendos da brapi são só da B3.
+        // ponytail: gráfico de cripto viria do /v2/crypto com range/interval, se for preciso
+        guard !isCrypto else {
+            view?.displayChartError(message: "Gráfico indisponível para cripto")
+            view?.displayDividendsError(message: "Criptomoedas não pagam dividendos")
+            return
+        }
+
         view?.showChartLoading()
         interactor.getCurrentMonthHistorical(symbol: symbol)
 

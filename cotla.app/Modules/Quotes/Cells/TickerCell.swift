@@ -33,18 +33,27 @@ class TickerCell: UITableViewCell {
     }
 
     func configure(with ticker: StockEntity) {
-        tickerLabel.text = ticker.symbol
-        nameLabel.text = ticker.longName
-        priceLabel.text = ticker.quote.lastPrice.asCurrency
+        configure(symbol: ticker.displaySymbol, subtitle: ticker.longName, value: ticker.quote.lastPrice,
+                  changePercent: ticker.isTreasury ? nil : ticker.quote.changePercent, logoUrl: ticker.logoUrl)
+    }
 
-        let change = ticker.quote.changePercent
-        changeBadge.text = String(format: "%@%.2f%%", change >= 0 ? "+" : "", change)
+    /// `changePercent` nil esconde o selo (ex.: ativo sem cotação ou título do Tesouro).
+    func configure(symbol: String, subtitle: String, value: Double, changePercent: Double?, logoUrl: String?) {
+        tickerLabel.text = symbol
+        nameLabel.text = subtitle
+        priceLabel.text = value.asCurrency
 
-        let color: UIColor = change >= 0 ? .systemGreen : .systemRed
-        changeBadge.textColor = color
-        changeBadge.backgroundColor = color.withAlphaComponent(0.15)
+        changeBadge.isHidden = changePercent == nil
+
+        if let change = changePercent {
+            let color: UIColor = change >= 0 ? .systemGreen : .systemRed
+
+            changeBadge.text            = String(format: "%@%.2f%%", change >= 0 ? "+" : "", change)
+            changeBadge.textColor       = color
+            changeBadge.backgroundColor = color.withAlphaComponent(0.15)
+        }
         
-        logoImageView.setImage(for: ticker.logoUrl)
+        logoImageView.setImage(for: logoUrl ?? "")
     }
     
     

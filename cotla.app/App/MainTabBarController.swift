@@ -29,8 +29,16 @@ class MainTabBarController: UITabBarController {
         
         quotesVC.tabBarItem         = UITabBarItem(title: "Cotações", image: UIImage(systemName: "chart.bar"), tag: 0)
         
+        let favoritesVC             = FavoritesViewController()
+        favoritesVC.tabBarItem      = UITabBarItem(title: "Favoritos", image: UIImage(systemName: "star"), tag: 2)
+
+        let portfolioVC             = PortfolioViewController()
+        portfolioVC.tabBarItem      = UITabBarItem(title: "Carteira", image: UIImage(systemName: "briefcase"), tag: 1)
+
         viewControllers = [
-            UINavigationController(rootViewController: quotesVC)
+            UINavigationController(rootViewController: quotesVC),
+            UINavigationController(rootViewController: portfolioVC),
+            UINavigationController(rootViewController: favoritesVC)
         ]
     }
     

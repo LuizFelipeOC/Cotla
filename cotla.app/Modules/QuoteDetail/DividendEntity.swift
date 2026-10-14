@@ -29,4 +29,6 @@ nonisolated class CashDividendEntity: Decodable {
     let label: String?
     let paymentDate: String?
     let exDate: String?
+    /// Data com: último dia em que quem tem a cota recebe o provento.
+    let lastDatePrior: String?
 }

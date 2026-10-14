@@ -11,6 +11,7 @@ protocol QuotesPresenterProtocol: AnyObject {
     func viewDidLoad()
     func loadNextPageIfNeeded(currentIndex: Int, totalCount: Int)
     func search(query: String)
+    func filter(by kind: AssetKind?)
     func didSelectTicker(_ ticker: StockEntity)
     func refresh()
 }
@@ -32,6 +33,7 @@ class QuotesPresenter: QuotesPresenterProtocol, QuotesInteractorOutputProtocol {
     private var isRefreshing          = false
     private var hasPendingRefresh     = false
     private var currentSearch: String = ""
+    private var currentKind: AssetKind?
 
     var router: QuoteRouter
 
@@ -45,7 +47,7 @@ class QuotesPresenter: QuotesPresenterProtocol, QuotesInteractorOutputProtocol {
     private func loadPage(isFirstPage: Bool, showsOverlay: Bool = true) {
         isLoadingPage = true
         if isFirstPage && showsOverlay { LoadingOverlay.shared.show() }
-        interactor.getTickers(page: currentPage, search: currentSearch, isFirstPage: isFirstPage)
+        interactor.getTickers(page: currentPage, search: currentSearch, kind: currentKind, isFirstPage: isFirstPage)
     }
 
     func viewDidLoad() {
@@ -105,12 +107,28 @@ class QuotesPresenter: QuotesPresenterProtocol, QuotesInteractorOutputProtocol {
         loadPage(isFirstPage: true)
     }
 
-    func onFetchError(error: Error) {
+    func filter(by kind: AssetKind?) {
+        currentKind = kind
+        currentPage = 1
+        hasNextPage = true
+        loadPage(isFirstPage: true)
+    }
+
+    func onFetchError(error: Error, isFirstPage: Bool) {
         isLoadingPage = false
         LoadingOverlay.shared.hide()
         finishRefreshing()
 
-        view?.displayError(message: "Não foi possível carregar as cotações")
+        // Falha ao paginar mantém o que já está na tela.
+        if isFirstPage {
+            switch error as? CotlaError {
+            case .paidFeatureRequired, .unauthorized:
+                view?.displayError(message: "Esta categoria exige um plano pago da brapi")
+            default:
+                view?.displayError(message: "Não foi possível carregar as cotações")
+            }
+        }
+
         runPendingRefreshIfNeeded()
     }
     

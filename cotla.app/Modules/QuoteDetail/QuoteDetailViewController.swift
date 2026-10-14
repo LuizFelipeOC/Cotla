@@ -51,7 +51,39 @@ class QuoteDetailViewController: UIViewController, QuoteDetailViewProtocol {
             self?.present(DividendsSheetViewController(dividends: dividends), animated: true)
         }
 
+        navigationItem.rightBarButtonItems = [favoriteButton, portfolioButton]
+        updateFavoriteButton()
+
         setupLayoutConstrains()
+    }
+
+    private lazy var favoriteButton: UIBarButtonItem = {
+        let button       = UIBarButtonItem(image: nil, style: .plain, target: self, action: #selector(toggleFavorite))
+        button.tintColor = UIColor(named: "BrandGreen")
+        return button
+    }()
+
+    private lazy var portfolioButton: UIBarButtonItem = {
+        let button                = UIBarButtonItem(image: UIImage(systemName: "briefcase"), style: .plain, target: self, action: #selector(addToPortfolio))
+        button.tintColor          = UIColor(named: "BrandGreen")
+        button.accessibilityLabel = "Adicionar à carteira"
+        return button
+    }()
+
+    @objc private func addToPortfolio() {
+        let form = AddPositionViewController(kind: ticker.portfolioKind, symbol: ticker.symbol, displayName: ticker.displaySymbol)
+        present(UINavigationController(rootViewController: form), animated: true)
+    }
+
+    @objc private func toggleFavorite() {
+        FavoritesStore.toggle(ticker)
+        updateFavoriteButton()
+    }
+
+    private func updateFavoriteButton() {
+        let isFavorite = FavoritesStore.isFavorite(ticker.symbol)
+        favoriteButton.image = UIImage(systemName: isFavorite ? "star.fill" : "star")
+        favoriteButton.accessibilityLabel = isFavorite ? "Remover dos favoritos" : "Adicionar aos favoritos"
     }
 
     private let scrollView  = UIScrollView()
@@ -206,6 +238,7 @@ class QuoteDetailViewController: UIViewController, QuoteDetailViewProtocol {
         case "stock": return "Ação"
         case "fund":  return "Fundo"
         case "bdr":   return "BDR"
+        case "crypto": return "Cripto"
         default:      return ticker.assetType.capitalized
         }
     }

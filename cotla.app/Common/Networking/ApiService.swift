@@ -9,10 +9,16 @@ import Foundation
 
 
 protocol ApiServiceProtocol {
-    func getAllTickers(for page: Int, search: String) async throws -> StockListResponse
+    func getAllTickers(for page: Int, search: String, kind: AssetKind?) async throws -> StockListResponse
+    func getAvailableCrypto(search: String) async throws -> CryptoAvailableResponse
+    func getTreasury(page: Int, search: String) async throws -> TreasuryListResponse
+    func getCdi(startDate: String, endDate: String) async throws -> [CdiDayEntity]
+    func getTreasuryHistory(symbol: String, startDate: String, endDate: String) async throws -> TreasuryHistoryResponse
     func getHistorical(symbol: String, range: String, interval: String) async throws -> HistoricalResponse
+    func getHistorical(symbol: String, startDate: String, endDate: String) async throws -> HistoricalResponse
     func getDividends(symbol: String) async throws -> DividendsResponse
     func getFiiDividends(symbol: String) async throws -> FiiDividendsResponse
+    func getCrypto(coins: [String]) async throws -> CryptoResponse
 }
 
 class ApiService: ApiServiceProtocol {
@@ -22,8 +28,22 @@ class ApiService: ApiServiceProtocol {
     let limit: Int = 50
 
 
-    func getAllTickers(for page: Int, search: String) async throws -> StockListResponse {
-        guard let url = URL(string: "\(baseUrl)/tickers?page=\(page)&limit=\(limit)&search=\(search)") else {
+    /// `kind` nil traz tudo. FII filtra por `subType` porque `type=fund` também traz ETFs e outros fundos.
+    func getAllTickers(for page: Int, search: String, kind: AssetKind?) async throws -> StockListResponse {
+        var components = URLComponents(string: "\(baseUrl)/tickers")
+        components?.queryItems = [
+            URLQueryItem(name: "page", value: String(page)),
+            URLQueryItem(name: "limit", value: String(limit)),
+            URLQueryItem(name: "search", value: search)
+        ]
+
+        switch kind {
+        case .stock:  components?.queryItems?.append(URLQueryItem(name: "type", value: "stock"))
+        case .fii:    components?.queryItems?.append(URLQueryItem(name: "subType", value: "fii"))
+        case .crypto, .treasury, nil: break
+        }
+
+        guard let url = components?.url else {
             throw CotlaError.invalidURL
         }
 
@@ -49,6 +69,29 @@ class ApiService: ApiServiceProtocol {
             URLQueryItem(name: "range", value: range),
             URLQueryItem(name: "interval", value: interval),
             URLQueryItem(name: "sortOrder", value: "asc")
+        ]
+
+        guard let url = components?.url else {
+            throw CotlaError.invalidURL
+        }
+
+        let data = try await authorizedData(from: url)
+
+        do {
+            return try JSONDecoder().decode(HistoricalResponse.self, from: data)
+        } catch {
+            throw CotlaError.decodingFailed
+        }
+    }
+
+    /// Janela por data (YYYY-MM-DD), diária. O `close` é o preço negociado no dia, sem ajuste por proventos.
+    func getHistorical(symbol: String, startDate: String, endDate: String) async throws -> HistoricalResponse {
+        var components = URLComponents(string: "\(baseUrl)/stocks/historical")
+        components?.queryItems = [
+            URLQueryItem(name: "symbols", value: symbol),
+            URLQueryItem(name: "startDate", value: startDate),
+            URLQueryItem(name: "endDate", value: endDate),
+            URLQueryItem(name: "interval", value: "1d")
         ]
 
         guard let url = components?.url else {
@@ -100,6 +143,115 @@ class ApiService: ApiServiceProtocol {
         } catch {
             throw CotlaError.decodingFailed
         }
+    }
+
+    /// Exige plano pago da brapi (Startup); no gratuito lança `.paidFeatureRequired`.
+    func getCrypto(coins: [String]) async throws -> CryptoResponse {
+        var components = URLComponents(string: "\(baseUrl)/crypto")
+        components?.queryItems = [
+            URLQueryItem(name: "coin", value: coins.joined(separator: ",")),
+            URLQueryItem(name: "currency", value: "BRL")
+        ]
+
+        guard let url = components?.url else {
+            throw CotlaError.invalidURL
+        }
+
+        let data = try await authorizedData(from: url)
+
+        do {
+            return try JSONDecoder().decode(CryptoResponse.self, from: data)
+        } catch {
+            throw CotlaError.decodingFailed
+        }
+    }
+
+    /// Lista os códigos de cripto suportados. Também exige plano pago.
+    func getAvailableCrypto(search: String) async throws -> CryptoAvailableResponse {
+        var components = URLComponents(string: "\(baseUrl)/crypto/available")
+        components?.queryItems = [URLQueryItem(name: "search", value: search)]
+
+        guard let url = components?.url else {
+            throw CotlaError.invalidURL
+        }
+
+        let data = try await authorizedData(from: url)
+
+        do {
+            return try JSONDecoder().decode(CryptoAvailableResponse.self, from: data)
+        } catch {
+            throw CotlaError.decodingFailed
+        }
+    }
+
+    /// Lista completa exige plano Pro; no gratuito só alguns códigos de amostra respondem.
+    func getTreasury(page: Int, search: String) async throws -> TreasuryListResponse {
+        var components = URLComponents(string: "\(baseUrl)/treasury/list")
+        components?.queryItems = [
+            URLQueryItem(name: "page", value: String(page)),
+            URLQueryItem(name: "limit", value: String(limit)),
+            URLQueryItem(name: "search", value: search)
+        ]
+
+        guard let url = components?.url else {
+            throw CotlaError.invalidURL
+        }
+
+        let data = try await authorizedData(from: url)
+
+        do {
+            return try JSONDecoder().decode(TreasuryListResponse.self, from: data)
+        } catch {
+            throw CotlaError.decodingFailed
+        }
+    }
+
+    /// Preços diários do título; datas em YYYY-MM-DD. Mesmo plano do /treasury/list.
+    func getTreasuryHistory(symbol: String, startDate: String, endDate: String) async throws -> TreasuryHistoryResponse {
+        var components = URLComponents(string: "\(baseUrl)/treasury/indicators/history")
+        components?.queryItems = [
+            URLQueryItem(name: "symbols", value: symbol),
+            URLQueryItem(name: "startDate", value: startDate),
+            URLQueryItem(name: "endDate", value: endDate)
+        ]
+
+        guard let url = components?.url else {
+            throw CotlaError.invalidURL
+        }
+
+        let data = try await authorizedData(from: url)
+
+        do {
+            return try JSONDecoder().decode(TreasuryHistoryResponse.self, from: data)
+        } catch {
+            throw CotlaError.decodingFailed
+        }
+    }
+
+    /// CDI diário direto do Banco Central (SGS série 12): na brapi a série exige plano pago.
+    /// Datas em DD/MM/YYYY. O firewall do BCB às vezes devolve uma página HTML no lugar do JSON,
+    /// então tenta de novo antes de desistir.
+    func getCdi(startDate: String, endDate: String) async throws -> [CdiDayEntity] {
+        var components = URLComponents(string: "https://api.bcb.gov.br/dados/serie/bcdata.sgs.12/dados")
+        components?.queryItems = [
+            URLQueryItem(name: "formato", value: "json"),
+            URLQueryItem(name: "dataInicial", value: startDate),
+            URLQueryItem(name: "dataFinal", value: endDate)
+        ]
+
+        guard let url = components?.url else {
+            throw CotlaError.invalidURL
+        }
+
+        for attempt in 1...3 {
+            if let (data, _) = try? await URLSession.shared.data(from: url),
+               let days = try? JSONDecoder().decode([CdiDayEntity].self, from: data) {
+                return days
+            }
+            if attempt < 3 { try await Task.sleep(nanoseconds: 700_000_000) }
+        }
+
+        throw CotlaError.invalidResponse
     }
 
     // MARK: - Requisições autenticadas
