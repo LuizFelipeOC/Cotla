@@ -62,7 +62,11 @@ nonisolated class StockEntity: Codable {
     var portfolioKind: AssetKind {
         if isTreasury { return .treasury }
         if assetType == "crypto" { return .crypto }
-        return subType == "fii" ? .fii : .stock
+        switch subType {
+        case "fii": return .fii
+        case "etf": return .etf
+        default:    return .stock
+        }
     }
 }
 

@@ -184,6 +184,7 @@ extension AssetKind {
         switch self {
         case .stock:    return UIColor(named: "BrandGreen") ?? .systemGreen
         case .fii:      return .systemBlue
+        case .etf:      return .systemTeal
         case .crypto:   return .systemOrange
         case .treasury: return .systemPurple
         }

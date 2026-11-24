@@ -136,7 +136,7 @@ class AddPositionViewController: UIViewController {
     }
 
     @objc private func kindChanged() {
-        let examples: [AssetKind: String] = [.stock: "ex.: PETR4", .fii: "ex.: HGLG11", .crypto: "ex.: BTC",
+        let examples: [AssetKind: String] = [.stock: "ex.: PETR4", .fii: "ex.: HGLG11", .etf: "ex.: BOVA11", .crypto: "ex.: BTC",
                                              .treasury: "ex.: tesouro-selic-01032031"]
         symbolField.autocapitalizationType = selectedKind == .treasury ? .none : .allCharacters
         symbolField.placeholder = "Código (\(examples[selectedKind] ?? ""))"
@@ -162,7 +162,7 @@ class AddPositionViewController: UIViewController {
         let symbol = currentSymbol
         let date   = purchaseDatePicker.date
 
-        guard selectedKind == .stock || selectedKind == .fii, !symbol.isEmpty else { return }
+        guard selectedKind.isListedOnB3, !symbol.isEmpty else { return }
 
         priceTask?.cancel()
         priceTask = Task {
@@ -213,14 +213,13 @@ class AddPositionViewController: UIViewController {
 
             do {
                 switch kind {
-                case .stock, .fii:
+                case .stock, .fii, .etf:
                     guard let stock = try await PortfolioQuotes.stock(symbol: symbol) else {
                         return showAlert("\(symbol) não foi encontrado na B3.")
                     }
 
-                    let isFii = stock.subType == "fii"
-                    guard isFii == (kind == .fii) else {
-                        return showAlert(isFii ? "\(symbol) é um FII. Adicione em FIIs." : "\(symbol) não é um FII. Adicione em Ações.")
+                    guard stock.portfolioKind == kind else {
+                        return showAlert("\(symbol) é da categoria \(stock.portfolioKind.title). Adicione lá.")
                     }
 
                     position.currentPrice = stock.quote.lastPrice

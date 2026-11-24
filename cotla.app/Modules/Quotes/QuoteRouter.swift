@@ -17,7 +17,7 @@ final class QuoteRouter: QuoteRouterProtocol {
     func navigateToQuoteDetail(of ticker: StockEntity) {
         let detailVC         = QuoteDetailViewController(ticker: ticker)
         let detailInteractor = QuoteDetailInteractor(apiService: ApiService.shared)
-        let detailPresenter  = QuoteDetailPresenter(view: detailVC, interactor: detailInteractor, symbol: ticker.symbol, assetType: ticker.assetType)
+        let detailPresenter  = QuoteDetailPresenter(view: detailVC, interactor: detailInteractor, symbol: ticker.symbol, assetType: ticker.assetType, subType: ticker.subType)
 
         detailInteractor.presenter = detailPresenter
         detailVC.presenter         = detailPresenter

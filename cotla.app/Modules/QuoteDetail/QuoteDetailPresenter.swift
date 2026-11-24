@@ -27,11 +27,12 @@ class QuoteDetailPresenter: QuoteDetailPresenterProtocol, QuoteDetailInteractorO
     private let isFii: Bool
     private let isCrypto: Bool
 
-    init(view: QuoteDetailViewProtocol, interactor: QuoteDetailInteractorProtocol, symbol: String, assetType: String) {
+    init(view: QuoteDetailViewProtocol, interactor: QuoteDetailInteractorProtocol, symbol: String, assetType: String, subType: String?) {
         self.view       = view
         self.interactor = interactor
         self.symbol     = symbol
-        self.isFii      = assetType == "fund"
+        // Só FII usa o endpoint de proventos de FII; ETFs e outros fundos usam o de ações.
+        self.isFii      = subType == "fii"
         self.isCrypto   = assetType == "crypto"
     }
 

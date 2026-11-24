@@ -255,7 +255,7 @@ class PerformanceViewController: UIViewController {
     private func loadUpcoming(positions: [PositionEntity], today: String) async {
         var upcoming: [UpcomingDividend] = []
 
-        for position in positions where position.kind == .stock || position.kind == .fii {
+        for position in positions where position.kind.isListedOnB3 {
             let dividends = position.kind == .fii
                 ? try? await ApiService.shared.getFiiDividends(symbol: position.symbol).dividends
                 : try? await ApiService.shared.getDividends(symbol: position.symbol).results.first?.data.cashDividends

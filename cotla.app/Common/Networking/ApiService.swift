@@ -40,6 +40,7 @@ class ApiService: ApiServiceProtocol {
         switch kind {
         case .stock:  components?.queryItems?.append(URLQueryItem(name: "type", value: "stock"))
         case .fii:    components?.queryItems?.append(URLQueryItem(name: "subType", value: "fii"))
+        case .etf:    components?.queryItems?.append(URLQueryItem(name: "subType", value: "etf"))
         case .crypto, .treasury, nil: break
         }
 

@@ -236,6 +236,8 @@ class QuoteDetailViewController: UIViewController, QuoteDetailViewProtocol {
     private var assetTypeText: String {
         switch ticker.assetType {
         case "stock": return "Ação"
+        case "fund" where ticker.subType == "fii": return "FII"
+        case "fund" where ticker.subType == "etf": return "ETF"
         case "fund":  return "Fundo"
         case "bdr":   return "BDR"
         case "crypto": return "Cripto"

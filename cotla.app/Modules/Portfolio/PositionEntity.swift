@@ -6,15 +6,21 @@
 import Foundation
 
 nonisolated enum AssetKind: String, Codable, CaseIterable {
-    case stock, fii, crypto, treasury
+    case stock, fii, etf, crypto, treasury
 
     var title: String {
         switch self {
         case .stock:  return "Ações"
         case .fii:    return "FIIs"
+        case .etf:    return "ETFs"
         case .crypto: return "Cripto"
         case .treasury: return "Tesouro"
         }
+    }
+
+    /// Negociados na B3: têm cotação no /tickers, fechamento por data e proventos.
+    var isListedOnB3: Bool {
+        self == .stock || self == .fii || self == .etf
     }
 }
 

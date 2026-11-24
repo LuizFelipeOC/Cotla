@@ -9,6 +9,7 @@ class PortfolioViewController: UIViewController {
 
     private var positions: [PositionEntity] = []
     private var cryptoQuotesUnavailable     = false
+    private var dividendsAttempted: Set<String> = []
 
     private var selectedKind: AssetKind {
         AssetKind.allCases[kindControl.selectedSegmentIndex]
@@ -31,7 +32,10 @@ class PortfolioViewController: UIViewController {
         reload()
 
         // Ativo recém-adicionado (aqui ou pela lista de cotações) ainda sem proventos calculados.
-        if positions.contains(where: { $0.lots != nil && $0.dividendsReceived == nil && ($0.kind == .stock || $0.kind == .fii) }) {
+        // Só uma tentativa por ativo na sessão: no plano gratuito a brapi bloqueia proventos de vários
+        // ativos, e eles ficariam sem cálculo para sempre, refazendo as requisições a cada visita.
+        if positions.contains(where: { $0.lots != nil && $0.dividendsReceived == nil && $0.kind.isListedOnB3
+                                       && !dividendsAttempted.contains(Self.key($0.kind, $0.symbol)) }) {
             refreshQuotes()
         }
     }
@@ -239,7 +243,7 @@ class PortfolioViewController: UIViewController {
                 }
             }
 
-            for position in current where position.kind == .stock || position.kind == .fii {
+            for position in current where position.kind.isListedOnB3 {
                 if let stock = try? await PortfolioQuotes.stock(symbol: position.symbol) {
                     quotes[Self.key(position.kind, position.symbol)] = (stock.quote.lastPrice, stock.logoUrl)
                 }
@@ -261,11 +265,12 @@ class PortfolioViewController: UIViewController {
             // Proventos: FII tem endpoint próprio na brapi. Falha num ativo só mantém o valor anterior.
             var dividendsByKey: [String: [CashDividendEntity]] = [:]
 
-            for position in current where (position.kind == .stock || position.kind == .fii) && position.lots != nil {
+            for position in current where position.kind.isListedOnB3 && position.lots != nil {
                 let dividends = position.kind == .fii
                     ? try? await ApiService.shared.getFiiDividends(symbol: position.symbol).dividends
                     : try? await ApiService.shared.getDividends(symbol: position.symbol).results.first?.data.cashDividends
                 dividendsByKey[Self.key(position.kind, position.symbol)] = dividends
+                dividendsAttempted.insert(Self.key(position.kind, position.symbol))
             }
 
             let today = Self.day.format(Date())
