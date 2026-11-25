@@ -20,15 +20,6 @@ final class WelcomeViewController: UIViewController {
 
         view.backgroundColor = UIColor { $0.userInterfaceStyle == .dark ? .systemBackground : UIColor(red: 0.949, green: 0.965, blue: 0.953, alpha: 1) }
 
-        let counter  = UILabel()
-        counter.text = "(01)"
-        counter.font = .monospacedSystemFont(ofSize: 13, weight: .regular)
-        counter.textColor = .secondaryLabel
-
-        let pager = UIStackView(arrangedSubviews: [capsule(width: 20, color: brand), capsule(width: 6, color: .systemGray4), capsule(width: 6, color: .systemGray4)])
-        pager.spacing   = 6
-        pager.alignment = .center
-
         themeButton.backgroundColor    = .tertiarySystemBackground
         themeButton.tintColor          = ink
         themeButton.layer.cornerRadius = 20
@@ -43,7 +34,7 @@ final class WelcomeViewController: UIViewController {
         let content     = makeContent()
         let startButton = makeStartButton()
 
-        [counter, pager, themeButton, content, startButton].forEach {
+        [themeButton, content, startButton].forEach {
             $0.translatesAutoresizingMaskIntoConstraints = false
             view.addSubview($0)
         }
@@ -57,12 +48,6 @@ final class WelcomeViewController: UIViewController {
             themeButton.trailingAnchor.constraint(equalTo: safe.trailingAnchor, constant: -20),
             themeButton.widthAnchor.constraint(equalToConstant: 40),
             themeButton.heightAnchor.constraint(equalToConstant: 40),
-
-            counter.leadingAnchor.constraint(equalTo: safe.leadingAnchor, constant: 20),
-            counter.centerYAnchor.constraint(equalTo: themeButton.centerYAnchor),
-
-            pager.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            pager.centerYAnchor.constraint(equalTo: themeButton.centerYAnchor),
 
             content.leadingAnchor.constraint(equalTo: safe.leadingAnchor, constant: 20),
             content.trailingAnchor.constraint(equalTo: safe.trailingAnchor, constant: -20),
@@ -150,17 +135,6 @@ final class WelcomeViewController: UIViewController {
         let button = UIButton(configuration: config, primaryAction: UIAction { [weak self] _ in self?.start() })
         addShadow(to: button)
         return button
-    }
-
-    private func capsule(width: CGFloat, color: UIColor) -> UIView {
-        let view                = UIView()
-        view.backgroundColor    = color
-        view.layer.cornerRadius = 3
-        NSLayoutConstraint.activate([
-            view.widthAnchor.constraint(equalToConstant: width),
-            view.heightAnchor.constraint(equalToConstant: 6)
-        ])
-        return view
     }
 
     private func addShadow(to view: UIView) {
