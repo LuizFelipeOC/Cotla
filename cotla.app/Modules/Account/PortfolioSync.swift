@@ -91,6 +91,19 @@ enum PortfolioSync {
         isReady = false
     }
 
+    /// Antes de sair: junta com a nuvem para nada ficar só no aparelho. false se não deu (sem rede, por exemplo).
+    static func syncBeforeSignOut() async -> Bool {
+        await sync(from: nil)
+        return isReady
+    }
+
+    /// Saiu da conta: a carteira sai do aparelho (está na nuvem e volta ao entrar de novo).
+    static func clearAfterSignOut() {
+        UserDefaults.standard.removeObject(forKey: ownerKey)
+        isReady = false
+        PortfolioStore.replace(with: [], modifiedAt: nil)
+    }
+
     // MARK: - Enviar
 
     /// Uma edição local: sobe a carteira inteira. Um envio por vez, para um mais antigo não chegar depois.

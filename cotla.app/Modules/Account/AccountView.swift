@@ -11,8 +11,9 @@ struct AccountView: View {
     let email: String?
     let onClose: () -> Void
 
-    @State private var confirmDelete = false
-    @State private var isWorking     = false
+    @State private var confirmDelete          = false
+    @State private var confirmUnsyncedSignOut = false
+    @State private var isWorking              = false
     @State private var errorMessage: String?
 
     var body: some View {
@@ -24,8 +25,27 @@ struct AccountView: View {
 
                 Section {
                     Button("Sair") {
-                        Task { await run { try await SupabaseService.client.auth.signOut() } }
+                        Task {
+                            isWorking = true
+                            let synced = await PortfolioSync.syncBeforeSignOut()
+                            isWorking = false
+
+                            if synced {
+                                await signOut()
+                            } else {
+                                confirmUnsyncedSignOut = true
+                            }
+                        }
                     }
+                    .confirmationDialog("Sair sem salvar na nuvem?", isPresented: $confirmUnsyncedSignOut, titleVisibility: .visible) {
+                        Button("Sair mesmo assim", role: .destructive) {
+                            Task { await signOut() }
+                        }
+                    } message: {
+                        Text("Não foi possível enviar a carteira para a nuvem agora. Ao sair, ela é apagada deste aparelho e as alterações que ainda não subiram se perdem.")
+                    }
+                } footer: {
+                    Text("Ao sair, a carteira é apagada deste aparelho. Ela volta quando você entrar de novo.")
                 }
 
                 Section {
@@ -62,6 +82,14 @@ struct AccountView: View {
                 Text("Isso não pode ser desfeito.")
             }
             .disabled(isWorking)
+        }
+    }
+
+    /// Só limpa o aparelho se o logout deu certo; se falhar, continua logado e com a carteira.
+    private func signOut() async {
+        await run {
+            try await SupabaseService.client.auth.signOut()
+            PortfolioSync.clearAfterSignOut()
         }
     }
 
