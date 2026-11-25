@@ -25,20 +25,24 @@ final class PriceChartView: UIView {
 
     private var points: [Point] = []
     private var lineColor: UIColor = .systemGreen
+    /// Segunda série opcional (ex.: CDI ao lado da carteira), traçada sem área nem ponto final.
+    private var secondaryPoints: [Point] = []
+    private var secondaryColor: UIColor = .secondaryLabel
     private var priceDomain: ClosedRange<Double> = 0...1
     private var scrubIndex: Int?
 
     private let axisDateFormatter    = DateFormatter()
     private let tooltipDateFormatter = DateFormatter()
 
-    private let gridLayer      = CAShapeLayer()
-    private let areaLayer      = CAGradientLayer()
-    private let areaMaskLayer  = CAShapeLayer()
-    private let lineLayer      = CAShapeLayer()
-    private let endHaloLayer   = CAShapeLayer()
-    private let endDotLayer    = CAShapeLayer()
-    private let scrubLineLayer = CAShapeLayer()
-    private let scrubDotLayer  = CAShapeLayer()
+    private let gridLayer          = CAShapeLayer()
+    private let areaLayer          = CAGradientLayer()
+    private let areaMaskLayer      = CAShapeLayer()
+    private let lineLayer          = CAShapeLayer()
+    private let secondaryLineLayer = CAShapeLayer()
+    private let endHaloLayer       = CAShapeLayer()
+    private let endDotLayer        = CAShapeLayer()
+    private let scrubLineLayer     = CAShapeLayer()
+    private let scrubDotLayer      = CAShapeLayer()
 
     private let tooltipView       = UIView()
     private let tooltipPriceLabel = UILabel()
@@ -75,7 +79,8 @@ final class PriceChartView: UIView {
     }
 
     func setPoints(_ newPoints: [Point], animated: Bool) {
-        points = newPoints
+        points          = newPoints
+        secondaryPoints = []
 
         if let first = newPoints.first, let last = newPoints.last {
             lineColor = last.price >= first.price ? Self.brandGreen : .systemRed
@@ -87,6 +92,13 @@ final class PriceChartView: UIView {
         if animated, points.count > 1 {
             animateDrawIn()
         }
+    }
+
+    /// Série de comparação (ex.: CDI). Precisa ter a mesma quantidade de pontos da série principal.
+    func setSecondaryPoints(_ newPoints: [Point], color: UIColor) {
+        secondaryPoints = newPoints
+        secondaryColor  = color
+        redraw()
     }
 
     // MARK: - Configuração
@@ -113,6 +125,12 @@ final class PriceChartView: UIView {
         lineLayer.lineJoin  = .round
         lineLayer.lineCap   = .round
 
+        secondaryLineLayer.fillColor       = nil
+        secondaryLineLayer.lineWidth       = 2
+        secondaryLineLayer.lineJoin        = .round
+        secondaryLineLayer.lineCap         = .round
+        secondaryLineLayer.lineDashPattern = [5, 4]
+
         scrubLineLayer.fillColor       = nil
         scrubLineLayer.lineWidth       = 1
         scrubLineLayer.lineDashPattern = [3, 3]
@@ -121,7 +139,7 @@ final class PriceChartView: UIView {
         scrubDotLayer.lineWidth = 3
         scrubDotLayer.isHidden  = true
 
-        let layers: [CALayer] = [gridLayer, areaLayer, lineLayer, endHaloLayer, endDotLayer, scrubLineLayer, scrubDotLayer]
+        let layers: [CALayer] = [gridLayer, areaLayer, secondaryLineLayer, lineLayer, endHaloLayer, endDotLayer, scrubLineLayer, scrubDotLayer]
         layers.forEach { layer.addSublayer($0) }
     }
 
@@ -183,10 +201,14 @@ final class PriceChartView: UIView {
     }
 
     private func position(for index: Int) -> CGPoint {
+        position(for: index, among: points)
+    }
+
+    private func position(for index: Int, among series: [Point]) -> CGPoint {
         let plot     = plotRect
-        let progress = points.count > 1 ? CGFloat(index) / CGFloat(points.count - 1) : 0
+        let progress = series.count > 1 ? CGFloat(index) / CGFloat(series.count - 1) : 0
         let span     = priceDomain.upperBound - priceDomain.lowerBound
-        let ratio    = span > 0 ? (points[index].price - priceDomain.lowerBound) / span : 0.5
+        let ratio    = span > 0 ? (series[index].price - priceDomain.lowerBound) / span : 0.5
 
         return CGPoint(x: plot.minX + plot.width * progress, y: plot.maxY - plot.height * CGFloat(ratio))
     }
@@ -201,7 +223,7 @@ final class PriceChartView: UIView {
         let plot = plotRect
 
         guard points.count > 1, plot.width > 0, plot.height > 0 else {
-            [gridLayer, areaMaskLayer, lineLayer, endHaloLayer, endDotLayer].forEach { $0.path = nil }
+            [gridLayer, areaMaskLayer, lineLayer, secondaryLineLayer, endHaloLayer, endDotLayer].forEach { $0.path = nil }
             (yAxisLabels + xAxisLabels).forEach { $0.isHidden = true }
             return
         }
@@ -209,6 +231,7 @@ final class PriceChartView: UIView {
         updatePriceDomain()
         drawGrid(in: plot)
         drawLine(in: plot)
+        drawSecondaryLine()
         drawXAxisLabels(in: plot)
 
         if let scrubIndex {
@@ -221,6 +244,7 @@ final class PriceChartView: UIView {
 
         gridLayer.strokeColor         = UIColor.separator.resolvedColor(with: traitCollection).cgColor
         lineLayer.strokeColor         = line.cgColor
+        secondaryLineLayer.strokeColor = secondaryColor.resolvedColor(with: traitCollection).cgColor
         areaLayer.colors              = [line.withAlphaComponent(0.28).cgColor, line.withAlphaComponent(0).cgColor]
         endHaloLayer.fillColor        = line.withAlphaComponent(0.2).cgColor
         endDotLayer.fillColor         = line.cgColor
@@ -231,7 +255,7 @@ final class PriceChartView: UIView {
     }
 
     private func updatePriceDomain() {
-        let prices = points.map(\.price)
+        let prices = (points + secondaryPoints).map(\.price)
         guard var lower = prices.min(), var upper = prices.max() else { return }
 
         if lower == upper {
@@ -291,6 +315,21 @@ final class PriceChartView: UIView {
         let last = position(for: points.count - 1)
         endHaloLayer.path = UIBezierPath(ovalIn: CGRect(x: last.x - 9, y: last.y - 9, width: 18, height: 18)).cgPath
         endDotLayer.path  = UIBezierPath(ovalIn: CGRect(x: last.x - 4, y: last.y - 4, width: 8, height: 8)).cgPath
+    }
+
+    private func drawSecondaryLine() {
+        guard secondaryPoints.count > 1 else {
+            secondaryLineLayer.path = nil
+            return
+        }
+
+        let line = UIBezierPath()
+        for index in secondaryPoints.indices {
+            let point = position(for: index, among: secondaryPoints)
+            index == 0 ? line.move(to: point) : line.addLine(to: point)
+        }
+
+        secondaryLineLayer.path = line.cgPath
     }
 
     private func drawXAxisLabels(in plot: CGRect) {
@@ -395,15 +434,24 @@ final class PriceChartView: UIView {
 
         CATransaction.commit()
 
-        tooltipPriceLabel.text = valueFormatter?(points[index].price) ?? points[index].price.asCurrency
+        let primaryText = valueFormatter?(points[index].price) ?? points[index].price.asCurrency
+        if secondaryPoints.indices.contains(index) {
+            let secondaryText = valueFormatter?(secondaryPoints[index].price) ?? secondaryPoints[index].price.asCurrency
+            tooltipPriceLabel.numberOfLines = 2
+            tooltipPriceLabel.text          = "\(primaryText)\n\(secondaryText)"
+        } else {
+            tooltipPriceLabel.numberOfLines = 1
+            tooltipPriceLabel.text          = primaryText
+        }
         tooltipDateLabel.text  = format(date: points[index].date, with: tooltipDateFormatter)
 
-        let width   = max(tooltipPriceLabel.intrinsicContentSize.width, tooltipDateLabel.intrinsicContentSize.width) + 24
-        let originX = min(max(point.x - width / 2, 0), bounds.width - width)
+        let priceHeight = tooltipPriceLabel.numberOfLines * 16
+        let width        = max(tooltipPriceLabel.intrinsicContentSize.width, tooltipDateLabel.intrinsicContentSize.width) + 24
+        let originX      = min(max(point.x - width / 2, 0), bounds.width - width)
 
-        tooltipView.frame            = CGRect(x: originX, y: 0, width: width, height: 40)
-        tooltipPriceLabel.frame      = CGRect(x: 0, y: 5, width: width, height: 18)
-        tooltipDateLabel.frame       = CGRect(x: 0, y: 22, width: width, height: 14)
+        tooltipView.frame            = CGRect(x: originX, y: 0, width: width, height: CGFloat(priceHeight) + 22)
+        tooltipPriceLabel.frame      = CGRect(x: 0, y: 5, width: width, height: CGFloat(priceHeight))
+        tooltipDateLabel.frame       = CGRect(x: 0, y: CGFloat(priceHeight) + 7, width: width, height: 14)
         tooltipView.layer.shadowPath = UIBezierPath(roundedRect: tooltipView.bounds, cornerRadius: 12).cgPath
 
         guard tooltipView.isHidden else { return }

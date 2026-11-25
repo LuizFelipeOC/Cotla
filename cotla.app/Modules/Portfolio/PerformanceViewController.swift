@@ -9,6 +9,7 @@ import UIKit
 class PerformanceViewController: UIViewController {
 
     private static let brazilLocale = Locale(identifier: "pt_BR")
+    private static let brandGreen   = UIColor(named: "BrandGreen") ?? .systemGreen
     private static let isoDay       = Date.ISO8601FormatStyle(timeZone: .current).year().month().day()
     /// O gráfico formata as datas no fuso de Brasília; os dias do CDI precisam estar nele.
     private static let saoPauloDay  = Date.ISO8601FormatStyle(timeZone: TimeZone(identifier: "America/Sao_Paulo") ?? .current)
@@ -240,6 +241,75 @@ class PerformanceViewController: UIViewController {
             percentOfCdiLabel.text      = "\(Int((portfolioPercent / cdiPercent * 100).rounded()))% do CDI"
             percentOfCdiLabel.textColor = portfolioPercent >= cdiPercent ? UIColor(named: "BrandGreen") : .systemRed
         }
+
+        // Linha da carteira por dia, para comparar a trajetória com o CDI no mesmo gráfico.
+        let curve = await portfolioCurve(positions: positions, days: days, invested: invested,
+                                         startDate: firstDate, endDate: today)
+        guard curve.count == points.count else { return }
+
+        let curveColor = (curve.last?.price ?? 0) >= (curve.first?.price ?? 0) ? Self.brandGreen : .systemRed
+        chartView.setPoints(curve, animated: true)
+        chartView.setSecondaryPoints(points, color: .secondaryLabel)
+        cdiCaptionLabel.attributedText = Self.legendText(portfolioColor: curveColor)
+    }
+
+    /// Valor de mercado da carteira em cada dia do CDI, pelas cotações históricas de cada ativo
+    /// (uma cota só existe no cálculo a partir da data da própria compra).
+    /// ponytail: sem cotação histórica (cripto/tesouro, ou falha de rede), assume o preço médio no período todo.
+    private func portfolioCurve(positions: [PositionEntity], days: [CdiDayEntity], invested: Double,
+                                startDate: String, endDate: String) async -> [PriceChartView.Point] {
+        var pricesBySymbol: [String: [String: Double]] = [:]
+
+        for position in positions where position.kind.isListedOnB3 {
+            let prices = try? await ApiService.shared.getHistorical(symbol: position.symbol, startDate: startDate, endDate: endDate)
+                .results.first?.data.historicalDataPrice
+            pricesBySymbol[position.symbol] = Self.closeByDay(prices ?? [], days: days)
+        }
+
+        return days.compactMap { day -> PriceChartView.Point? in
+            guard let date = try? Date(day.isoDate, strategy: Self.saoPauloDay) else { return nil }
+
+            let marketValue = positions.reduce(0.0) { total, position in
+                let heldQuantity = (position.lots ?? []).filter { $0.date <= day.isoDate }.reduce(0) { $0 + $1.quantity }
+                guard heldQuantity > 0 else { return total }
+
+                let price = pricesBySymbol[position.symbol]?[day.isoDate] ?? position.averagePrice
+                return total + heldQuantity * price
+            }
+
+            return PriceChartView.Point(date: date, price: (marketValue / invested - 1) * 100)
+        }
+    }
+
+    /// Fechamento mais recente até cada dia do CDI (fins de semana/feriados repetem o último pregão).
+    private static func closeByDay(_ prices: [HistoricalPriceEntity], days: [CdiDayEntity]) -> [String: Double] {
+        let closes = prices.compactMap { price -> (date: String, close: Double)? in
+            guard let close = price.close else { return nil }
+            return (saoPauloDay.format(Date(timeIntervalSince1970: price.date)), close)
+        }.sorted { $0.date < $1.date }
+
+        var result: [String: Double] = [:]
+        var cursor = 0
+        var lastClose: Double?
+
+        for day in days {
+            while cursor < closes.count, closes[cursor].date <= day.isoDate {
+                lastClose = closes[cursor].close
+                cursor += 1
+            }
+            if let lastClose { result[day.isoDate] = lastClose }
+        }
+
+        return result
+    }
+
+    private static func legendText(portfolioColor: UIColor) -> NSAttributedString {
+        let font = UIFont.systemFont(ofSize: 12)
+        let text = NSMutableAttributedString(string: "● ", attributes: [.foregroundColor: portfolioColor, .font: font])
+        text.append(NSAttributedString(string: "Carteira     ", attributes: [.foregroundColor: UIColor.secondaryLabel, .font: font]))
+        text.append(NSAttributedString(string: "● ", attributes: [.foregroundColor: UIColor.secondaryLabel, .font: font]))
+        text.append(NSAttributedString(string: "CDI", attributes: [.foregroundColor: UIColor.secondaryLabel, .font: font]))
+        return text
     }
 
     private func showCdiMessage(_ message: String) {
