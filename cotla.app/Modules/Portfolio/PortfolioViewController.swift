@@ -3,6 +3,8 @@
 //  cotla.app
 //
 
+import Supabase
+import SwiftUI
 import UIKit
 
 class PortfolioViewController: UIViewController {
@@ -54,6 +56,11 @@ class PortfolioViewController: UIViewController {
         ]
         navigationItem.rightBarButtonItems?.forEach { $0.tintColor = UIColor(named: "BrandGreen") }
         navigationItem.rightBarButtonItems?.last?.accessibilityLabel = "Desempenho e proventos"
+
+        navigationItem.leftBarButtonItem = UIBarButtonItem(image: UIImage(systemName: "person.crop.circle"), style: .plain,
+                                                           target: self, action: #selector(showAccount))
+        navigationItem.leftBarButtonItem?.tintColor          = UIColor(named: "BrandGreen")
+        navigationItem.leftBarButtonItem?.accessibilityLabel = "Conta"
 
         let appearance = UINavigationBarAppearance()
         appearance.configureWithTransparentBackground()
@@ -225,6 +232,20 @@ class PortfolioViewController: UIViewController {
 
     @objc private func kindChanged() {
         reload()
+    }
+
+    /// Logado: conta (sair, excluir). Sem conta: login.
+    @objc private func showAccount() {
+        let close: () -> Void = { [weak self] in self?.dismiss(animated: true) }
+
+        let screen: UIViewController
+        if let user = SupabaseService.client.auth.currentUser {
+            screen = UIHostingController(rootView: AccountView(email: user.email, onClose: close))
+        } else {
+            screen = UIHostingController(rootView: LoginView(onFinish: close))
+        }
+
+        present(screen, animated: true)
     }
 
     @objc private func showPerformance() {

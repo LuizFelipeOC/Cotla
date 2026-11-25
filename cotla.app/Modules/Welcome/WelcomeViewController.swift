@@ -3,6 +3,8 @@
 //  cotla.app
 //
 
+import Supabase
+import SwiftUI
 import UIKit
 
 final class WelcomeViewController: UIViewController {
@@ -154,11 +156,22 @@ final class WelcomeViewController: UIViewController {
         UserDefaults.standard.set(style.rawValue, forKey: Self.themeKey)
     }
 
+    /// Depois das boas-vindas vem o login (dá para pular); quem já tem sessão vai direto para o app.
     private func start() {
         UserDefaults.standard.set(true, forKey: Self.seenKey)
         guard let window = view.window else { return }
+
+        let showApp = { [weak window] in
+            guard let window else { return }
+            UIView.transition(with: window, duration: 0.35, options: .transitionCrossDissolve) {
+                window.rootViewController = MainTabBarController()
+            }
+        }
+
+        guard SupabaseService.client.auth.currentSession == nil else { return showApp() }
+
         UIView.transition(with: window, duration: 0.35, options: .transitionCrossDissolve) {
-            window.rootViewController = MainTabBarController()
+            window.rootViewController = UIHostingController(rootView: LoginView(onFinish: showApp))
         }
     }
 }

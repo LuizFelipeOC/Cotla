@@ -4,6 +4,10 @@
 <dict>
 	<key>BRAPI_TOKEN</key>
 	<string>$(BRAPI_TOKEN)</string>
+	<key>SUPABASE_HOST</key>
+	<string>$(SUPABASE_HOST)</string>
+	<key>SUPABASE_ANON_KEY</key>
+	<string>$(SUPABASE_ANON_KEY)</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

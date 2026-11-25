@@ -10,6 +10,7 @@
 		7046BC933058B78E004E8462 /* SDWebImage in Frameworks */ = {isa = PBXBuildFile; productRef = 7046BC923058B78E004E8462 /* SDWebImage */; };
 		7046BC953058B78E004E8462 /* SDWebImageMapKit in Frameworks */ = {isa = PBXBuildFile; productRef = 7046BC943058B78E004E8462 /* SDWebImageMapKit */; };
 		7046BC983058B7A4004E8462 /* SDWebImageSVGCoder in Frameworks */ = {isa = PBXBuildFile; productRef = 7046BC973058B7A4004E8462 /* SDWebImageSVGCoder */; };
+		7046BCA33058C1A0004E8462 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 7046BCA23058C1A0004E8462 /* Supabase */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -45,6 +46,7 @@
 				7046BC983058B7A4004E8462 /* SDWebImageSVGCoder in Frameworks */,
 				7046BC953058B78E004E8462 /* SDWebImageMapKit in Frameworks */,
 				7046BC933058B78E004E8462 /* SDWebImage in Frameworks */,
+				7046BCA33058C1A0004E8462 /* Supabase in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -90,6 +92,7 @@
 				7046BC923058B78E004E8462 /* SDWebImage */,
 				7046BC943058B78E004E8462 /* SDWebImageMapKit */,
 				7046BC973058B7A4004E8462 /* SDWebImageSVGCoder */,
+				7046BCA23058C1A0004E8462 /* Supabase */,
 			);
 			productName = cotla.app;
 			productReference = 7038A8A63050D2BD004638D6 /* cotla.app.app */;
@@ -122,6 +125,7 @@
 			packageReferences = (
 				7046BC913058B78E004E8462 /* XCRemoteSwiftPackageReference "SDWebImage" */,
 				7046BC963058B7A4004E8462 /* XCRemoteSwiftPackageReference "SDWebImageSVGCoder" */,
+				7046BCA13058C1A0004E8462 /* XCRemoteSwiftPackageReference "supabase-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 7038A8A73050D2BD004638D6 /* Products */;
@@ -381,6 +385,14 @@
 				minimumVersion = 1.8.0;
 			};
 		};
+		7046BCA13058C1A0004E8462 /* XCRemoteSwiftPackageReference "supabase-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/supabase/supabase-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -398,6 +410,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 7046BC963058B7A4004E8462 /* XCRemoteSwiftPackageReference "SDWebImageSVGCoder" */;
 			productName = SDWebImageSVGCoder;
+		};
+		7046BCA23058C1A0004E8462 /* Supabase */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 7046BCA13058C1A0004E8462 /* XCRemoteSwiftPackageReference "supabase-swift" */;
+			productName = Supabase;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
