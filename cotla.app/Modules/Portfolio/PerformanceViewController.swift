@@ -77,10 +77,12 @@ class PerformanceViewController: UIViewController {
     }()
 
     private lazy var contentStack: UIStackView = {
-        let cdiFooter       = makeFootnote("Cada compra é comparada com o mesmo valor aplicado no CDI desde a data da compra. Fonte do CDI: Banco Central.")
+        let cdiFooter       = makeFootnote("Cada compra é comparada com o mesmo valor aplicado no CDI desde a data da compra. "
+                                           + "No gráfico, CDI, Ibovespa e IFIX acumulam desde a primeira compra; o IFIX vem do XFIX11, "
+                                           + "ETF que replica o índice. Fontes: Banco Central e brapi.")
         let dividendsHeader = makeSectionTitle("Proventos a receber")
 
-        let stack     = UIStackView(arrangedSubviews: [makeSectionTitle("Carteira x CDI"), cdiCard, cdiFooter,
+        let stack     = UIStackView(arrangedSubviews: [makeSectionTitle("Carteira x CDI e índices"), cdiCard, cdiFooter,
                                                        dividendsHeader, dividendsCard, dividendsFootnote])
         stack.axis    = .vertical
         stack.spacing = 8
@@ -217,6 +219,7 @@ class PerformanceViewController: UIViewController {
         cdiStatusLabel.isHidden  = true
         chartView.isHidden       = false
         cdiCaptionLabel.isHidden = false
+        chartView.primaryLabel   = nil
         chartView.setPoints(points, animated: true)
         cdiCaptionLabel.text = "CDI acumulado desde \(first.date.formatted(.dateTime.day().month().year().locale(Self.brazilLocale))): \(Self.percentText(last.price))"
 
@@ -247,10 +250,43 @@ class PerformanceViewController: UIViewController {
         let curve = await portfolioCurve(positions: positions, days: days, startDate: firstDate, endDate: today)
         guard curve.count == points.count else { return }
 
+        // Índices no mesmo período e nos mesmos dias; um índice que falhar só fica de fora.
+        var comparisons = [PriceChartView.Comparison(label: "CDI", points: points, color: .secondaryLabel)]
+        for benchmark in Self.benchmarks {
+            let series = await Self.indexCurve(symbol: benchmark.symbol, days: days, startDate: firstDate, endDate: today)
+            if series.count == points.count {
+                comparisons.append(.init(label: benchmark.label, points: series, color: benchmark.color))
+            }
+        }
+
         let curveColor = (curve.last?.price ?? 0) >= (curve.first?.price ?? 0) ? Self.brandGreen : .systemRed
+        chartView.primaryLabel = "Carteira"
         chartView.setPoints(curve, animated: true)
-        chartView.setSecondaryPoints(points, color: .secondaryLabel)
-        cdiCaptionLabel.attributedText = Self.legendText(portfolioColor: curveColor)
+        chartView.setComparisons(comparisons)
+        cdiCaptionLabel.attributedText = Self.legendText(portfolioColor: curveColor, portfolioPercent: curve.last?.price ?? 0,
+                                                         comparisons: comparisons)
+    }
+
+    /// Ibovespa direto (^BVSP). A brapi não tem o IFIX, então ele vem do XFIX11, ETF que replica o índice.
+    private static let benchmarks: [(label: String, symbol: String, color: UIColor)] = [
+        ("Ibovespa", "^BVSP", .systemIndigo),
+        ("IFIX", "XFIX11", .systemOrange)
+    ]
+
+    /// Variação acumulada desde o primeiro dia do gráfico, nos mesmos dias do CDI. Vazio se a brapi não responder.
+    private static func indexCurve(symbol: String, days: [CdiDayEntity],
+                                   startDate: String, endDate: String) async -> [PriceChartView.Point] {
+        guard let prices = try? await ApiService.shared.getHistorical(symbol: symbol, startDate: startDate, endDate: endDate)
+            .results.first?.data.historicalDataPrice else { return [] }
+
+        let closes = closeByDay(prices, days: days)
+        guard let base = days.lazy.compactMap({ closes[$0.isoDate] }).first else { return [] }
+
+        // Antes do primeiro pregão com cotação, fica em 0%.
+        return days.compactMap { day in
+            guard let date = try? Date(day.isoDate, strategy: saoPauloDay) else { return nil }
+            return PriceChartView.Point(date: date, price: ((closes[day.isoDate] ?? base) / base - 1) * 100)
+        }
     }
 
     /// Rentabilidade em cada dia do CDI: valor de mercado das cotas em carteira naquele dia (compras menos vendas,
@@ -315,12 +351,22 @@ class PerformanceViewController: UIViewController {
         return result
     }
 
-    private static func legendText(portfolioColor: UIColor) -> NSAttributedString {
-        let font = UIFont.systemFont(ofSize: 12)
-        let text = NSMutableAttributedString(string: "● ", attributes: [.foregroundColor: portfolioColor, .font: font])
-        text.append(NSAttributedString(string: "Carteira     ", attributes: [.foregroundColor: UIColor.secondaryLabel, .font: font]))
-        text.append(NSAttributedString(string: "● ", attributes: [.foregroundColor: UIColor.secondaryLabel, .font: font]))
-        text.append(NSAttributedString(string: "CDI", attributes: [.foregroundColor: UIColor.secondaryLabel, .font: font]))
+    /// "● Carteira +12,30%   ● CDI +8,10%   ● Ibovespa +5,20%   ● IFIX +2,00%", com a cor de cada linha.
+    private static func legendText(portfolioColor: UIColor, portfolioPercent: Double,
+                                   comparisons: [PriceChartView.Comparison]) -> NSAttributedString {
+        let font  = UIFont.systemFont(ofSize: 12)
+        let items = [(label: "Carteira", color: portfolioColor, percent: portfolioPercent)]
+            + comparisons.map { (label: $0.label, color: $0.color, percent: $0.points.last?.price ?? 0) }
+
+        let text = NSMutableAttributedString()
+        for (index, item) in items.enumerated() {
+            if index > 0 {
+                text.append(NSAttributedString(string: "   ", attributes: [.font: font]))
+            }
+            text.append(NSAttributedString(string: "● ", attributes: [.foregroundColor: item.color, .font: font]))
+            text.append(NSAttributedString(string: "\(item.label) \(percentText(item.percent))",
+                                           attributes: [.foregroundColor: UIColor.secondaryLabel, .font: font]))
+        }
         return text
     }
 

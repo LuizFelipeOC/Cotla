@@ -26,8 +26,18 @@ final class PriceChartView: UIView {
     private var points: [Point] = []
     private var lineColor: UIColor = .systemGreen
     /// Segunda série opcional (ex.: CDI ao lado da carteira), traçada sem área nem ponto final.
-    private var secondaryPoints: [Point] = []
-    private var secondaryColor: UIColor = .secondaryLabel
+    private var comparisons: [Comparison] = []
+    private var comparisonLayers: [CAShapeLayer] = []
+
+    /// Linha de comparação (ex.: CDI, Ibovespa), tracejada e sem área. Mesma quantidade de pontos da série principal.
+    struct Comparison {
+        let label: String
+        let points: [Point]
+        let color: UIColor
+    }
+
+    /// Nome da série principal no tooltip quando há comparações (ex.: "Carteira").
+    var primaryLabel: String?
     private var priceDomain: ClosedRange<Double> = 0...1
     private var scrubIndex: Int?
 
@@ -38,7 +48,6 @@ final class PriceChartView: UIView {
     private let areaLayer          = CAGradientLayer()
     private let areaMaskLayer      = CAShapeLayer()
     private let lineLayer          = CAShapeLayer()
-    private let secondaryLineLayer = CAShapeLayer()
     private let endHaloLayer       = CAShapeLayer()
     private let endDotLayer        = CAShapeLayer()
     private let scrubLineLayer     = CAShapeLayer()
@@ -79,8 +88,8 @@ final class PriceChartView: UIView {
     }
 
     func setPoints(_ newPoints: [Point], animated: Bool) {
-        points          = newPoints
-        secondaryPoints = []
+        points = newPoints
+        setComparisons([])
 
         if let first = newPoints.first, let last = newPoints.last {
             lineColor = last.price >= first.price ? Self.brandGreen : .systemRed
@@ -94,10 +103,22 @@ final class PriceChartView: UIView {
         }
     }
 
-    /// Série de comparação (ex.: CDI). Precisa ter a mesma quantidade de pontos da série principal.
-    func setSecondaryPoints(_ newPoints: [Point], color: UIColor) {
-        secondaryPoints = newPoints
-        secondaryColor  = color
+    /// Troca as linhas de comparação, desenhadas atrás da série principal.
+    func setComparisons(_ newComparisons: [Comparison]) {
+        comparisonLayers.forEach { $0.removeFromSuperlayer() }
+
+        comparisons      = newComparisons
+        comparisonLayers = newComparisons.map { _ in
+            let line             = CAShapeLayer()
+            line.fillColor       = nil
+            line.lineWidth       = 2
+            line.lineJoin        = .round
+            line.lineCap         = .round
+            line.lineDashPattern = [5, 4]
+            layer.insertSublayer(line, below: lineLayer)
+            return line
+        }
+
         redraw()
     }
 
@@ -125,12 +146,6 @@ final class PriceChartView: UIView {
         lineLayer.lineJoin  = .round
         lineLayer.lineCap   = .round
 
-        secondaryLineLayer.fillColor       = nil
-        secondaryLineLayer.lineWidth       = 2
-        secondaryLineLayer.lineJoin        = .round
-        secondaryLineLayer.lineCap         = .round
-        secondaryLineLayer.lineDashPattern = [5, 4]
-
         scrubLineLayer.fillColor       = nil
         scrubLineLayer.lineWidth       = 1
         scrubLineLayer.lineDashPattern = [3, 3]
@@ -139,7 +154,7 @@ final class PriceChartView: UIView {
         scrubDotLayer.lineWidth = 3
         scrubDotLayer.isHidden  = true
 
-        let layers: [CALayer] = [gridLayer, areaLayer, secondaryLineLayer, lineLayer, endHaloLayer, endDotLayer, scrubLineLayer, scrubDotLayer]
+        let layers: [CALayer] = [gridLayer, areaLayer, lineLayer, endHaloLayer, endDotLayer, scrubLineLayer, scrubDotLayer]
         layers.forEach { layer.addSublayer($0) }
     }
 
@@ -223,7 +238,7 @@ final class PriceChartView: UIView {
         let plot = plotRect
 
         guard points.count > 1, plot.width > 0, plot.height > 0 else {
-            [gridLayer, areaMaskLayer, lineLayer, secondaryLineLayer, endHaloLayer, endDotLayer].forEach { $0.path = nil }
+            ([gridLayer, areaMaskLayer, lineLayer, endHaloLayer, endDotLayer] + comparisonLayers).forEach { $0.path = nil }
             (yAxisLabels + xAxisLabels).forEach { $0.isHidden = true }
             return
         }
@@ -231,7 +246,7 @@ final class PriceChartView: UIView {
         updatePriceDomain()
         drawGrid(in: plot)
         drawLine(in: plot)
-        drawSecondaryLine()
+        drawComparisons()
         drawXAxisLabels(in: plot)
 
         if let scrubIndex {
@@ -244,7 +259,6 @@ final class PriceChartView: UIView {
 
         gridLayer.strokeColor         = UIColor.separator.resolvedColor(with: traitCollection).cgColor
         lineLayer.strokeColor         = line.cgColor
-        secondaryLineLayer.strokeColor = secondaryColor.resolvedColor(with: traitCollection).cgColor
         areaLayer.colors              = [line.withAlphaComponent(0.28).cgColor, line.withAlphaComponent(0).cgColor]
         endHaloLayer.fillColor        = line.withAlphaComponent(0.2).cgColor
         endDotLayer.fillColor         = line.cgColor
@@ -252,10 +266,14 @@ final class PriceChartView: UIView {
         scrubDotLayer.fillColor       = line.cgColor
         scrubDotLayer.strokeColor     = UIColor.secondarySystemBackground.resolvedColor(with: traitCollection).cgColor
         tooltipView.layer.borderColor = UIColor.separator.resolvedColor(with: traitCollection).cgColor
+
+        for (line, comparison) in zip(comparisonLayers, comparisons) {
+            line.strokeColor = comparison.color.resolvedColor(with: traitCollection).cgColor
+        }
     }
 
     private func updatePriceDomain() {
-        let prices = (points + secondaryPoints).map(\.price)
+        let prices = (points + comparisons.flatMap(\.points)).map(\.price)
         guard var lower = prices.min(), var upper = prices.max() else { return }
 
         if lower == upper {
@@ -317,19 +335,21 @@ final class PriceChartView: UIView {
         endDotLayer.path  = UIBezierPath(ovalIn: CGRect(x: last.x - 4, y: last.y - 4, width: 8, height: 8)).cgPath
     }
 
-    private func drawSecondaryLine() {
-        guard secondaryPoints.count > 1 else {
-            secondaryLineLayer.path = nil
-            return
-        }
+    private func drawComparisons() {
+        for (layer, comparison) in zip(comparisonLayers, comparisons) {
+            guard comparison.points.count > 1 else {
+                layer.path = nil
+                continue
+            }
 
-        let line = UIBezierPath()
-        for index in secondaryPoints.indices {
-            let point = position(for: index, among: secondaryPoints)
-            index == 0 ? line.move(to: point) : line.addLine(to: point)
-        }
+            let line = UIBezierPath()
+            for index in comparison.points.indices {
+                let point = position(for: index, among: comparison.points)
+                index == 0 ? line.move(to: point) : line.addLine(to: point)
+            }
 
-        secondaryLineLayer.path = line.cgPath
+            layer.path = line.cgPath
+        }
     }
 
     private func drawXAxisLabels(in plot: CGRect) {
@@ -434,16 +454,15 @@ final class PriceChartView: UIView {
 
         CATransaction.commit()
 
-        let primaryText = valueFormatter?(points[index].price) ?? points[index].price.asCurrency
-        if secondaryPoints.indices.contains(index) {
-            let secondaryText = valueFormatter?(secondaryPoints[index].price) ?? secondaryPoints[index].price.asCurrency
-            tooltipPriceLabel.numberOfLines = 2
-            tooltipPriceLabel.text          = "\(primaryText)\n\(secondaryText)"
-        } else {
-            tooltipPriceLabel.numberOfLines = 1
-            tooltipPriceLabel.text          = primaryText
-        }
-        tooltipDateLabel.text  = format(date: points[index].date, with: tooltipDateFormatter)
+        // Com comparações, uma linha por série com o nome na frente: "Carteira +12,3%", "CDI +8,1%"...
+        let format = { (value: Double) in self.valueFormatter?(value) ?? value.asCurrency }
+        let others = comparisons.filter { $0.points.indices.contains(index) }
+        let lines  = [[primaryLabel, format(points[index].price)].compactMap { $0 }.joined(separator: " ")]
+            + others.map { "\($0.label) \(format($0.points[index].price))" }
+
+        tooltipPriceLabel.numberOfLines = lines.count
+        tooltipPriceLabel.text          = lines.joined(separator: "\n")
+        tooltipDateLabel.text           = self.format(date: points[index].date, with: tooltipDateFormatter)
 
         let priceHeight = tooltipPriceLabel.numberOfLines * 16
         let width        = max(tooltipPriceLabel.intrinsicContentSize.width, tooltipDateLabel.intrinsicContentSize.width) + 24
