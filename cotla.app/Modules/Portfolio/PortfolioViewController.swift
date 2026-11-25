@@ -126,6 +126,7 @@ class PortfolioViewController: UIViewController {
     private lazy var kindControl: UISegmentedControl = {
         let control = UISegmentedControl(items: AssetKind.allCases.map(\.title))
         control.selectedSegmentIndex = 0
+        control.apportionsSegmentWidthsByContent = true
         control.addTarget(self, action: #selector(kindChanged), for: .valueChanged)
         control.translatesAutoresizingMaskIntoConstraints = false
         return control
@@ -275,6 +276,24 @@ class PortfolioViewController: UIViewController {
 
             let today = Self.day.format(Date())
 
+            // Renda fixa: rende com o CDI do BCB desde a aplicação e vale o líquido de um resgate hoje.
+            // Falha no BCB mantém o último valor calculado.
+            var fixedIncomeByKey: [String: FixedIncome] = [:]
+            let fixedIncomes = current.filter { $0.fixedIncome != nil }
+
+            if let start = fixedIncomes.compactMap({ $0.lots?.first?.date }).min(),
+               let days = try? await ApiService.shared.getCdi(startDate: Self.brazilianDate(start), endDate: Self.brazilianDate(today)) {
+                for position in fixedIncomes {
+                    guard var fixedIncome = position.fixedIncome, let date = position.lots?.first?.date else { continue }
+
+                    let now = fixedIncome.redemption(invested: position.invested, appliedOn: date, on: today, cdi: days)
+                    fixedIncome.breakdown         = now
+                    fixedIncome.maturityBreakdown = fixedIncome.projectedAtMaturity(invested: position.invested, appliedOn: date, from: today,
+                                                                                    gross: now.gross, cdiDailyRate: days.last?.dailyRate ?? 0)
+                    fixedIncomeByKey[Self.key(position.kind, position.symbol)] = fixedIncome
+                }
+            }
+
             // Relê do disco para não desfazer algo adicionado/removido enquanto a atualização rodava.
             PortfolioStore.save(PortfolioStore.all().map { position in
                 let key     = Self.key(position.kind, position.symbol)
@@ -283,6 +302,11 @@ class PortfolioViewController: UIViewController {
                 if let quote = quotes[key] {
                     updated.currentPrice = quote.price
                     updated.logoUrl      = quote.logo ?? position.logoUrl
+                }
+
+                if let fixedIncome = fixedIncomeByKey[key] {
+                    updated.fixedIncome  = fixedIncome
+                    updated.currentPrice = fixedIncome.breakdown?.net
                 }
 
                 if let dividends = dividendsByKey[key] {
@@ -298,6 +322,11 @@ class PortfolioViewController: UIViewController {
     }
 
     private static let day = Date.ISO8601FormatStyle(timeZone: .current).year().month().day()
+
+    /// "2026-12-21" → "21/12/2026", para exibir e para a API do BCB.
+    private static func brazilianDate(_ iso: String) -> String {
+        iso.split(separator: "-").reversed().joined(separator: "/")
+    }
 
     private static func key(_ kind: AssetKind, _ symbol: String) -> String {
         "\(kind.rawValue):\(symbol)"
@@ -317,9 +346,59 @@ extension PortfolioViewController: UITableViewDataSource, UITableViewDelegate {
     }
 
     func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
-        guard selectedKind == .crypto, cryptoQuotesUnavailable, !visiblePositions.isEmpty else { return nil }
+        guard !visiblePositions.isEmpty else { return nil }
+
+        if selectedKind == .fixedIncome {
+            return "Valor líquido de um resgate hoje, na curva: rende por dia útil (base 252) com o CDI do Banco Central, "
+                + "com IOF regressivo até o 29º dia e IR regressivo de 22,5% a 15% sobre o rendimento. "
+                + "LCI, LCA e debênture incentivada são isentas de IR; debêntures não têm IOF. "
+                + "No vencimento o título para de render e o valor é pago na conta. Toque num título para ver a conta; "
+                + "deslize para resgatar (com liquidez diária ou já vencido)."
+        }
+
+        guard selectedKind == .crypto, cryptoQuotesUnavailable else { return nil }
 
         return "A cotação de cripto exige um plano pago da brapi. Os valores usam o preço médio informado."
+    }
+
+    func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
+        tableView.deselectRow(at: indexPath, animated: true)
+
+        let position = visiblePositions[indexPath.row]
+        guard let fixedIncome = position.fixedIncome else { return }
+
+        let message: String
+        if let breakdown = fixedIncome.breakdown {
+            let matured  = fixedIncome.isMatured(on: Self.day.format(Date()))
+            let maturity = fixedIncome.maturity.map { (matured ? " · venceu " : " · vence ") + Self.brazilianDate($0) } ?? ""
+
+            let liquidity = fixedIncome.dailyLiquidity == true ? "Liquidez diária" : "Sem liquidez diária: resgate só no vencimento"
+
+            var lines = ["\(fixedIncome.rateDescription)\(maturity)", liquidity, "", "Aplicado: \(position.invested.asCurrency)", ""]
+            if matured {
+                lines.append("Pago no vencimento (\(breakdown.daysHeld) dias)")
+            } else {
+                lines.append(fixedIncome.dailyLiquidity == true
+                    ? "Resgate hoje, na curva (\(breakdown.daysHeld) dias)"
+                    : "Valor hoje, na curva (\(breakdown.daysHeld) dias)")
+            }
+            lines += fixedIncome.lines(for: breakdown)
+
+            if let atMaturity = fixedIncome.maturityBreakdown {
+                lines += ["", fixedIncome.indexer == .prefixed
+                    ? "No vencimento (\(atMaturity.daysHeld) dias)"
+                    : "No vencimento (\(atMaturity.daysHeld) dias, estimado com o CDI de hoje)"]
+                lines += fixedIncome.lines(for: atMaturity)
+            }
+
+            message = lines.joined(separator: "\n")
+        } else {
+            message = "O rendimento é calculado com o CDI do Banco Central ao atualizar a carteira. Puxe a lista para atualizar."
+        }
+
+        let alert = UIAlertController(title: position.name ?? fixedIncome.product.title, message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
     }
 
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
@@ -332,7 +411,15 @@ extension PortfolioViewController: UITableViewDataSource, UITableViewDelegate {
 
         cell.configure(
             symbol: position.name ?? position.symbol,
-            subtitle: "\(quantity) × PM \(position.averagePrice.asCurrency)",
+            subtitle: position.fixedIncome.map { fixedIncome in
+                guard let maturity = fixedIncome.maturity else { return "\(fixedIncome.rateDescription) · aplicado \(position.invested.asCurrency)" }
+                if fixedIncome.isMatured(on: Self.day.format(Date())) {
+                    return "Venceu em \(Self.brazilianDate(maturity)) · pago na conta"
+                }
+                return fixedIncome.dailyLiquidity == true
+                    ? "\(fixedIncome.rateDescription) · liquidez diária"
+                    : "\(fixedIncome.rateDescription) · vence \(Self.brazilianDate(maturity))"
+            } ?? "\(quantity) × PM \(position.averagePrice.asCurrency)",
             value: position.currentValue,
             changePercent: position.resultPercent,
             logoUrl: position.logoUrl
@@ -351,7 +438,34 @@ extension PortfolioViewController: UITableViewDataSource, UITableViewDelegate {
         }
         remove.image = UIImage(systemName: "trash")
 
-        return UISwipeActionsConfiguration(actions: [remove])
+        guard position.fixedIncome != nil else { return UISwipeActionsConfiguration(actions: [remove]) }
+
+        let redeem = UIContextualAction(style: .normal, title: "Resgatar") { [weak self] _, _, completion in
+            self?.redeem(position)
+            completion(true)
+        }
+        redeem.image           = UIImage(systemName: "arrow.down.to.line")
+        redeem.backgroundColor = UIColor(named: "BrandGreen")
+
+        return UISwipeActionsConfiguration(actions: [remove, redeem])
+    }
+
+    private func redeem(_ position: PositionEntity) {
+        guard let fixedIncome = position.fixedIncome else { return }
+
+        guard fixedIncome.canRedeem(on: Self.day.format(Date())) else {
+            let maturity = fixedIncome.maturity.map { " (\(Self.brazilianDate($0)))" } ?? ""
+            let alert    = UIAlertController(title: "Sem liquidez diária",
+                                             message: "Este título só pode ser resgatado no vencimento\(maturity).",
+                                             preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            return present(alert, animated: true)
+        }
+
+        guard let form = RedeemFixedIncomeViewController(position: position) else { return }
+        form.onRedeem = { [weak self] in self?.reload() }
+
+        present(UINavigationController(rootViewController: form), animated: true)
     }
 }
 

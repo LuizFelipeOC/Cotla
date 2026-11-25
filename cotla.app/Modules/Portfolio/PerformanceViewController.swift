@@ -254,7 +254,7 @@ class PerformanceViewController: UIViewController {
     }
 
     /// Valor de mercado da carteira em cada dia do CDI, pelas cotações históricas de cada ativo
-    /// (uma cota só existe no cálculo a partir da data da própria compra).
+    /// (uma cota só existe no cálculo a partir da data da própria compra). Renda fixa entra pelo líquido de um resgate no dia.
     /// ponytail: sem cotação histórica (cripto/tesouro, ou falha de rede), assume o preço médio no período todo.
     private func portfolioCurve(positions: [PositionEntity], days: [CdiDayEntity], invested: Double,
                                 startDate: String, endDate: String) async -> [PriceChartView.Point] {
@@ -264,6 +264,14 @@ class PerformanceViewController: UIViewController {
             let prices = try? await ApiService.shared.getHistorical(symbol: position.symbol, startDate: startDate, endDate: endDate)
                 .results.first?.data.historicalDataPrice
             pricesBySymbol[position.symbol] = Self.closeByDay(prices ?? [], days: days)
+        }
+
+        // Quantidade 1: o "preço" do dia é o próprio valor líquido da aplicação.
+        for position in positions {
+            guard let fixedIncome = position.fixedIncome, let applied = position.lots?.first?.date else { continue }
+            pricesBySymbol[position.symbol] = Dictionary(days.filter { $0.isoDate >= applied }.map { day in
+                (day.isoDate, fixedIncome.redemption(invested: position.invested, appliedOn: applied, on: day.isoDate, cdi: days).net)
+            }, uniquingKeysWith: { $1 })
         }
 
         return days.compactMap { day -> PriceChartView.Point? in

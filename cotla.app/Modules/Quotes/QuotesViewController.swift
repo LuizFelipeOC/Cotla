@@ -100,8 +100,8 @@ class QuotesViewController: UIViewController, QuotesViewProtocol {
 
     private var selectedKind: AssetKind?
 
-    /// Chips na ordem de `[nil] + AssetKind.allCases`; nil é "Todos".
-    private lazy var chipButtons: [UIButton] = ([nil] + AssetKind.allCases).map { kind in
+    /// Chips na ordem de `[nil] + AssetKind.quotable`; nil é "Todos".
+    private lazy var chipButtons: [UIButton] = ([nil] + AssetKind.quotable).map { kind in
         let button = UIButton(configuration: .gray())
         button.configuration?.title       = kind?.title ?? "Todos"
         button.configuration?.cornerStyle = .capsule
@@ -134,7 +134,7 @@ class QuotesViewController: UIViewController, QuotesViewProtocol {
     }
 
     private func updateChips() {
-        let kinds: [AssetKind?] = [nil] + AssetKind.allCases
+        let kinds: [AssetKind?] = [nil] + AssetKind.quotable
 
         for (button, kind) in zip(chipButtons, kinds) {
             let isSelected = kind == selectedKind

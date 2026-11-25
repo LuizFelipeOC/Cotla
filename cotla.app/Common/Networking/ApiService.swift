@@ -41,7 +41,7 @@ class ApiService: ApiServiceProtocol {
         case .stock:  components?.queryItems?.append(URLQueryItem(name: "type", value: "stock"))
         case .fii:    components?.queryItems?.append(URLQueryItem(name: "subType", value: "fii"))
         case .etf:    components?.queryItems?.append(URLQueryItem(name: "subType", value: "etf"))
-        case .crypto, .treasury, nil: break
+        case .crypto, .treasury, .fixedIncome, nil: break
         }
 
         guard let url = components?.url else {

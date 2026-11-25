@@ -187,6 +187,7 @@ extension AssetKind {
         case .etf:      return .systemTeal
         case .crypto:   return .systemOrange
         case .treasury: return .systemPurple
+        case .fixedIncome: return .systemBrown
         }
     }
 }
