@@ -16,7 +16,12 @@ class PortfolioViewController: UIViewController {
     }
 
     private var visiblePositions: [PositionEntity] {
-        positions.filter { $0.kind == selectedKind }
+        positions.filter { $0.kind == selectedKind && !$0.isClosed }
+    }
+
+    /// Vendidas por completo: ficam numa seção à parte para o histórico e o lucro realizado.
+    private var closedPositions: [PositionEntity] {
+        positions.filter { $0.kind == selectedKind && $0.isClosed }
     }
 
     override func viewDidLoad() {
@@ -102,12 +107,13 @@ class PortfolioViewController: UIViewController {
     private let resultLabel   = SecondayLabelView(textAligment: .right, fontSize: 14)
     private let dividendsLabel = SecondayLabelView(textAligment: .left, fontSize: 14)
     private let returnLabel    = SecondayLabelView(textAligment: .right, fontSize: 14)
+    private let realizedLabel  = SecondayLabelView(textAligment: .left, fontSize: 14)
 
     private lazy var summaryStack: UIStackView = {
         let firstRow   = UIStackView(arrangedSubviews: [investedLabel, resultLabel])
         let secondRow  = UIStackView(arrangedSubviews: [dividendsLabel, returnLabel])
 
-        let footer     = UIStackView(arrangedSubviews: [firstRow, secondRow])
+        let footer     = UIStackView(arrangedSubviews: [firstRow, secondRow, realizedLabel])
         footer.axis    = .vertical
         footer.spacing = 4
 
@@ -173,12 +179,19 @@ class PortfolioViewController: UIViewController {
         positions = PortfolioStore.all()
 
         // Como no Investidor10: variação olha só o preço; rentabilidade soma os proventos recebidos.
+        // As duas olham o que está em carteira; o que já foi vendido aparece no lucro realizado.
         let invested   = positions.reduce(0) { $0 + $1.invested }
         let total      = positions.reduce(0) { $0 + $1.currentValue }
         let dividends  = positions.reduce(0) { $0 + ($1.dividendsReceived ?? 0) }
+        let openDividends = positions.filter { !$0.isClosed }.reduce(0) { $0 + ($1.dividendsReceived ?? 0) }
+        let realized   = positions.reduce(0) { $0 + $1.realizedProfit }
         let variation  = total - invested
         let variationPercent = invested > 0 ? variation / invested * 100 : 0
-        let returnPercent    = invested > 0 ? (variation + dividends) / invested * 100 : 0
+        let returnPercent    = invested > 0 ? (variation + openDividends) / invested * 100 : 0
+
+        realizedLabel.isHidden  = !positions.contains { $0.sales?.isEmpty == false }
+        realizedLabel.text      = "Lucro realizado em vendas \(realized >= 0 ? "+" : "-")\(abs(realized).asCurrency)"
+        realizedLabel.textColor = realized >= 0 ? .systemGreen : .systemRed
 
         totalLabel.text          = total.asCurrency
         investedLabel.text       = "Investido \(invested.asCurrency)"
@@ -198,7 +211,7 @@ class PortfolioViewController: UIViewController {
         allocationChart.isHidden = total <= 0
 
         emptyLabel.text          = "Nenhum ativo em \(selectedKind.title).\nToque em + para adicionar."
-        tableView.backgroundView = visiblePositions.isEmpty ? emptyLabel : nil
+        tableView.backgroundView = visiblePositions.isEmpty && closedPositions.isEmpty ? emptyLabel : nil
 
         if let deletedRow {
             // O reload no fim só atualiza o total do cabeçalho da seção.
@@ -244,13 +257,13 @@ class PortfolioViewController: UIViewController {
                 }
             }
 
-            for position in current where position.kind.isListedOnB3 {
+            for position in current where position.kind.isListedOnB3 && !position.isClosed {
                 if let stock = try? await PortfolioQuotes.stock(symbol: position.symbol) {
                     quotes[Self.key(position.kind, position.symbol)] = (stock.quote.lastPrice, stock.logoUrl)
                 }
             }
 
-            let coins = current.filter { $0.kind == .crypto }.map(\.symbol)
+            let coins = current.filter { $0.kind == .crypto && !$0.isClosed }.map(\.symbol)
 
             if !coins.isEmpty {
                 do {
@@ -334,11 +347,25 @@ class PortfolioViewController: UIViewController {
 }
 
 extension PortfolioViewController: UITableViewDataSource, UITableViewDelegate {
+    /// Seção 0: em carteira. Seção 1: encerradas.
+    private func position(at indexPath: IndexPath) -> PositionEntity {
+        indexPath.section == 0 ? visiblePositions[indexPath.row] : closedPositions[indexPath.row]
+    }
+
+    func numberOfSections(in tableView: UITableView) -> Int {
+        closedPositions.isEmpty ? 1 : 2
+    }
+
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        visiblePositions.count
+        section == 0 ? visiblePositions.count : closedPositions.count
     }
 
     func tableView(_ tableView: UITableView, titleForHeaderInSection section: Int) -> String? {
+        if section == 1 {
+            let realized = closedPositions.reduce(0) { $0 + $1.realizedProfit }
+            return "Encerradas · lucro realizado \(realized >= 0 ? "+" : "-")\(abs(realized).asCurrency)"
+        }
+
         let visible = visiblePositions
         guard !visible.isEmpty else { return nil }
 
@@ -346,7 +373,7 @@ extension PortfolioViewController: UITableViewDataSource, UITableViewDelegate {
     }
 
     func tableView(_ tableView: UITableView, titleForFooterInSection section: Int) -> String? {
-        guard !visiblePositions.isEmpty else { return nil }
+        guard section == 0, !visiblePositions.isEmpty else { return nil }
 
         if selectedKind == .fixedIncome {
             return "Valor líquido de um resgate hoje, na curva: rende por dia útil (base 252) com o CDI do Banco Central, "
@@ -364,8 +391,11 @@ extension PortfolioViewController: UITableViewDataSource, UITableViewDelegate {
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         tableView.deselectRow(at: indexPath, animated: true)
 
-        let position = visiblePositions[indexPath.row]
-        guard let fixedIncome = position.fixedIncome else { return }
+        let position = self.position(at: indexPath)
+        guard let fixedIncome = position.fixedIncome else {
+            navigationController?.pushViewController(OperationsViewController(position: position), animated: true)
+            return
+        }
 
         let message: String
         if let breakdown = fixedIncome.breakdown {
@@ -406,8 +436,16 @@ extension PortfolioViewController: UITableViewDataSource, UITableViewDelegate {
             return UITableViewCell()
         }
 
-        let position = visiblePositions[indexPath.row]
+        let position = self.position(at: indexPath)
         let quantity = position.quantity.formatted(.number.precision(.fractionLength(0...4)).locale(Locale(identifier: "pt_BR")))
+
+        if position.isClosed {
+            let sales = position.sales?.count ?? 0
+            cell.configure(symbol: position.name ?? position.symbol,
+                           subtitle: "Encerrada · \(sales) \(sales == 1 ? "venda" : "vendas") · lucro realizado",
+                           value: position.realizedProfit, changePercent: nil, logoUrl: position.logoUrl)
+            return cell
+        }
 
         cell.configure(
             symbol: position.name ?? position.symbol,
@@ -429,14 +467,25 @@ extension PortfolioViewController: UITableViewDataSource, UITableViewDelegate {
     }
 
     func tableView(_ tableView: UITableView, trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath) -> UISwipeActionsConfiguration? {
-        let position = visiblePositions[indexPath.row]
+        let position = self.position(at: indexPath)
 
         let remove = UIContextualAction(style: .destructive, title: "Remover") { [weak self] _, _, completion in
             PortfolioStore.remove(position)
-            self?.reload(deletedRow: indexPath)
+            // Na seção de encerradas, a última linha leva a seção junto: recarrega tudo em vez de animar.
+            self?.reload(deletedRow: indexPath.section == 0 ? indexPath : nil)
             completion(true)
         }
         remove.image = UIImage(systemName: "trash")
+
+        if !position.isClosed, position.kind.isSellable {
+            let sell = UIContextualAction(style: .normal, title: "Vender") { [weak self] _, _, completion in
+                self?.sell(position)
+                completion(true)
+            }
+            sell.image           = UIImage(systemName: "arrow.up.right")
+            sell.backgroundColor = UIColor(named: "BrandGreen")
+            return UISwipeActionsConfiguration(actions: [remove, sell])
+        }
 
         guard position.fixedIncome != nil else { return UISwipeActionsConfiguration(actions: [remove]) }
 
@@ -448,6 +497,16 @@ extension PortfolioViewController: UITableViewDataSource, UITableViewDelegate {
         redeem.backgroundColor = UIColor(named: "BrandGreen")
 
         return UISwipeActionsConfiguration(actions: [remove, redeem])
+    }
+
+    private func sell(_ position: PositionEntity) {
+        let form    = SellPositionViewController(position: position)
+        // Venda com data antiga muda as cotas com direito a proventos já pagos: recalcula tudo.
+        form.onSave = { [weak self] in
+            self?.reload()
+            self?.refreshQuotes()
+        }
+        present(UINavigationController(rootViewController: form), animated: true)
     }
 
     private func redeem(_ position: PositionEntity) {

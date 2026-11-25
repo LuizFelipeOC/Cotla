@@ -220,14 +220,15 @@ class PerformanceViewController: UIViewController {
         chartView.setPoints(points, animated: true)
         cdiCaptionLabel.text = "CDI acumulado desde \(first.date.formatted(.dateTime.day().month().year().locale(Self.brazilLocale))): \(Self.percentText(last.price))"
 
-        // Cada compra rende o CDI a partir da própria data.
+        // Compara o que está em carteira: cada compra ainda mantida rende o CDI desde a própria data.
+        // Posições encerradas ficam fora dos dois lados (o lucro delas é o realizado da carteira).
         let invested = positions.reduce(0) { $0 + $1.invested }
         guard invested > 0 else { return }
 
         let cdiValue = positions.flatMap { position in
-            (position.lots ?? []).map { $0.quantity * position.averagePrice * Cdi.factor(since: $0.date, in: days) }
+            position.heldLots.map { $0.quantity * position.averagePrice * Cdi.factor(since: $0.date, in: days) }
         }.reduce(0, +)
-        let portfolioValue = positions.reduce(0) { $0 + $1.currentValue + ($1.dividendsReceived ?? 0) }
+        let portfolioValue = positions.reduce(0) { $0 + $1.currentValue + ($1.isClosed ? 0 : $1.dividendsReceived ?? 0) }
 
         let portfolioPercent = (portfolioValue / invested - 1) * 100
         let cdiPercent       = (cdiValue / invested - 1) * 100
@@ -243,8 +244,7 @@ class PerformanceViewController: UIViewController {
         }
 
         // Linha da carteira por dia, para comparar a trajetória com o CDI no mesmo gráfico.
-        let curve = await portfolioCurve(positions: positions, days: days, invested: invested,
-                                         startDate: firstDate, endDate: today)
+        let curve = await portfolioCurve(positions: positions, days: days, startDate: firstDate, endDate: today)
         guard curve.count == points.count else { return }
 
         let curveColor = (curve.last?.price ?? 0) >= (curve.first?.price ?? 0) ? Self.brandGreen : .systemRed
@@ -253,10 +253,11 @@ class PerformanceViewController: UIViewController {
         cdiCaptionLabel.attributedText = Self.legendText(portfolioColor: curveColor)
     }
 
-    /// Valor de mercado da carteira em cada dia do CDI, pelas cotações históricas de cada ativo
-    /// (uma cota só existe no cálculo a partir da data da própria compra). Renda fixa entra pelo líquido de um resgate no dia.
-    /// ponytail: sem cotação histórica (cripto/tesouro, ou falha de rede), assume o preço médio no período todo.
-    private func portfolioCurve(positions: [PositionEntity], days: [CdiDayEntity], invested: Double,
+    /// Rentabilidade em cada dia do CDI: valor de mercado das cotas em carteira naquele dia (compras menos vendas,
+    /// pelas cotações históricas) sobre o custo delas pelo preço médio. Renda fixa entra pelo líquido de um resgate no dia.
+    /// ponytail: sem cotação histórica (cripto/tesouro, ou falha de rede), assume o preço médio no período todo;
+    /// o custo usa o PM atual, então dias antes de uma compra que mudou o PM ficam aproximados.
+    private func portfolioCurve(positions: [PositionEntity], days: [CdiDayEntity],
                                 startDate: String, endDate: String) async -> [PriceChartView.Point] {
         var pricesBySymbol: [String: [String: Double]] = [:]
 
@@ -277,15 +278,18 @@ class PerformanceViewController: UIViewController {
         return days.compactMap { day -> PriceChartView.Point? in
             guard let date = try? Date(day.isoDate, strategy: Self.saoPauloDay) else { return nil }
 
-            let marketValue = positions.reduce(0.0) { total, position in
-                let heldQuantity = (position.lots ?? []).filter { $0.date <= day.isoDate }.reduce(0) { $0 + $1.quantity }
-                guard heldQuantity > 0 else { return total }
+            var marketValue = 0.0
+            var cost        = 0.0
 
-                let price = pricesBySymbol[position.symbol]?[day.isoDate] ?? position.averagePrice
-                return total + heldQuantity * price
+            for position in positions {
+                let held = position.quantity(on: day.isoDate)
+                guard held > 0 else { continue }
+
+                marketValue += held * (pricesBySymbol[position.symbol]?[day.isoDate] ?? position.averagePrice)
+                cost        += held * position.averagePrice
             }
 
-            return PriceChartView.Point(date: date, price: (marketValue / invested - 1) * 100)
+            return PriceChartView.Point(date: date, price: cost > 0 ? (marketValue / cost - 1) * 100 : 0)
         }
     }
 

@@ -38,6 +38,34 @@ enum PortfolioStore {
         save(positions)
     }
 
+    /// Tira as cotas e guarda a venda; o preço médio não muda. Zerada, a posição fica como encerrada
+    /// (uma compra nova do mesmo ativo volta a abri-la, com PM só das compras novas).
+    static func sell(_ sale: PositionEntity.Sale, of position: PositionEntity) {
+        save(all().map { current in
+            guard current.symbol == position.symbol && current.kind == position.kind else { return current }
+
+            var updated       = current
+            let remaining     = current.quantity - sale.quantity
+            updated.quantity  = remaining < 1e-9 ? 0 : remaining
+            updated.sales     = (current.sales ?? []) + [sale]
+            return updated
+        })
+    }
+
+    /// Desfaz uma venda registrada por engano: as cotas voltam com o mesmo preço médio.
+    /// Só vale sem compra depois dela, porque uma compra posterior já recalculou o PM.
+    static func undoSale(at index: Int, of position: PositionEntity) {
+        save(all().map { current in
+            guard current.symbol == position.symbol && current.kind == position.kind,
+                  var sales = current.sales, sales.indices.contains(index) else { return current }
+
+            var updated      = current
+            updated.quantity = current.quantity + sales.remove(at: index).quantity
+            updated.sales    = sales
+            return updated
+        })
+    }
+
     static func remove(_ position: PositionEntity) {
         save(all().filter { !($0.symbol == position.symbol && $0.kind == position.kind) })
     }

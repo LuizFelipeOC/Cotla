@@ -26,6 +26,9 @@ nonisolated enum AssetKind: String, Codable, CaseIterable {
 
     /// Renda fixa privada não tem cotação pública: entra só pela carteira, não pela busca.
     static var quotable: [AssetKind] { allCases.filter { $0 != .fixedIncome } }
+
+    /// Tesouro e renda fixa saem por resgate, com IOF e IR regressivos, não pela venda com preço médio.
+    var isSellable: Bool { self != .treasury && self != .fixedIncome }
 }
 
 nonisolated struct PositionEntity: Codable {
@@ -39,6 +42,8 @@ nonisolated struct PositionEntity: Codable {
     var name: String?
     /// Cada compra com a data, para saber quantas cotas havia em cada data com.
     var lots: [Lot]?
+    /// Vendas registradas. Zerada a quantidade, a posição continua guardada como encerrada.
+    var sales: [Sale]?
     /// Proventos já pagos desde a compra (valor bruto), recalculado ao atualizar a carteira.
     var dividendsReceived: Double?
     /// CDB, LCI etc.: quantidade 1, preço médio = valor aplicado e `currentPrice` = valor líquido de IOF e IR.
@@ -47,9 +52,79 @@ nonisolated struct PositionEntity: Codable {
     nonisolated struct Lot: Codable {
         let date: String     // YYYY-MM-DD
         let quantity: Double
+        /// Preço por cota com os custos. Compras registradas antes deste campo não têm.
+        var price: Double?
+    }
+
+    nonisolated struct Sale: Codable {
+        let date: String     // YYYY-MM-DD
+        let quantity: Double
+        /// Por cota, antes dos custos.
+        let price: Double
+        let fees: Double
+        /// Preço médio na data da venda. Vender não muda o PM, mas compras depois mudam.
+        let averagePrice: Double
+
+        /// O que entra na conta: custos da venda reduzem o ganho.
+        var proceeds: Double { quantity * price - fees }
+        /// Ganho de capital pela regra do preço médio: venda líquida − PM × quantidade.
+        var profit: Double { proceeds - quantity * averagePrice }
     }
 
     var invested: Double { quantity * averagePrice }
+
+    var isClosed: Bool { quantity == 0 }
+
+    var realizedProfit: Double { (sales ?? []).reduce(0) { $0 + $1.profit } }
+
+    /// Compras (+) e vendas (−) por data. No mesmo dia, compras vêm antes das vendas.
+    var quantityChanges: [Lot] {
+        ((lots ?? []) + (sales ?? []).map { Lot(date: $0.date, quantity: -$0.quantity) })
+            .sorted { ($0.date, $0.quantity < 0 ? 1 : 0) < ($1.date, $1.quantity < 0 ? 1 : 0) }
+    }
+
+    /// Cotas em carteira ao fim de `date` (YYYY-MM-DD).
+    func quantity(on date: String) -> Double {
+        quantityChanges.filter { $0.date <= date }.reduce(0) { $0 + $1.quantity }
+    }
+
+    /// Compras que ainda estão em carteira. Como no preço médio, as cotas são um bolo só:
+    /// cada venda tira a mesma proporção de todas as compras anteriores.
+    var heldLots: [Lot] {
+        var held: [Lot] = []
+
+        for change in quantityChanges {
+            if change.quantity > 0 {
+                held.append(change)
+                continue
+            }
+
+            let total = held.reduce(0) { $0 + $1.quantity }
+            guard total > 0 else { continue }
+
+            let keep = max(0, 1 + change.quantity / total)
+            held = held.map { Lot(date: $0.date, quantity: $0.quantity * keep, price: $0.price) }
+        }
+
+        return held.filter { $0.quantity > 1e-9 }
+    }
+
+    /// A venda não pode deixar nenhum dia com quantidade negativa, nem antes nem depois dela.
+    /// Sem compras datadas (ex.: cripto), vale só a quantidade atual.
+    func canSell(_ quantity: Double, on date: String) -> Bool {
+        guard quantity > 0 else { return false }
+        guard lots?.isEmpty == false else { return quantity <= self.quantity + 1e-9 }
+
+        var running = 0.0
+        let changes = (quantityChanges + [Lot(date: date, quantity: -quantity)])
+            .sorted { ($0.date, $0.quantity < 0 ? 1 : 0) < ($1.date, $1.quantity < 0 ? 1 : 0) }
+
+        for change in changes {
+            running += change.quantity
+            if running < -1e-9 { return false }
+        }
+        return true
+    }
 
     /// Sem cotação, assume o preço médio para não distorcer o total.
     var currentValue: Double { quantity * (currentPrice ?? averagePrice) }
@@ -59,16 +134,16 @@ nonisolated struct PositionEntity: Codable {
         return (currentPrice / averagePrice - 1) * 100
     }
 
-    /// Cotas com direito ao provento: as compradas até a data com (`lastDatePrior`, inclusiva);
-    /// sem ela, as compradas antes do `exDate`. Data com futura conta todas as cotas atuais.
+    /// Cotas com direito ao provento: as que estavam em carteira ao fim da data com (`lastDatePrior`, inclusiva);
+    /// sem ela, antes do `exDate`. Quem vende na data com perde o provento. Data com futura conta as cotas atuais.
     func entitledQuantity(for dividend: CashDividendEntity) -> Double {
-        let lots = lots ?? []
+        let changes = quantityChanges
 
         if let dataCom = dividend.lastDatePrior?.prefix(10) {
-            return lots.filter { $0.date <= dataCom }.reduce(0) { $0 + $1.quantity }
+            return max(changes.filter { $0.date <= dataCom }.reduce(0) { $0 + $1.quantity }, 0)
         }
         if let exDate = dividend.exDate?.prefix(10) {
-            return lots.filter { $0.date < exDate }.reduce(0) { $0 + $1.quantity }
+            return max(changes.filter { $0.date < exDate }.reduce(0) { $0 + $1.quantity }, 0)
         }
         return 0
     }

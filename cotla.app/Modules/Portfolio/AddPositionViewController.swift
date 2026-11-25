@@ -370,7 +370,8 @@ class AddPositionViewController: UIViewController {
             }
 
             if kind != .crypto {
-                position.lots = [.init(date: Self.marketDay.format(purchaseDate), quantity: position.quantity)]
+                position.lots = [.init(date: Self.marketDay.format(purchaseDate), quantity: position.quantity,
+                                       price: position.averagePrice)]
             }
 
             PortfolioStore.add(position)
@@ -401,7 +402,7 @@ class AddPositionViewController: UIViewController {
         .year().month().day()
 
     /// Fechamento do último pregão até `date` (fim de semana/feriado usa o pregão anterior).
-    private static func closePrice(symbol: String, on date: Date) async throws -> Double? {
+    static func closePrice(symbol: String, on date: Date) async throws -> Double? {
         let day   = marketDay.format(date)
         let start = marketDay.format(date.addingTimeInterval(-10 * 86_400))
 
