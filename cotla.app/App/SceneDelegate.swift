@@ -30,7 +30,10 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     func sceneWillResignActive(_ scene: UIScene) { }
 
-    func sceneWillEnterForeground(_ scene: UIScene) { }
+    /// Roda ao abrir o app e ao voltar para ele: traz o que mudou em outro aparelho e sobe o que ficou pendente.
+    func sceneWillEnterForeground(_ scene: UIScene) {
+        Task { await PortfolioSync.sync(from: window?.rootViewController) }
+    }
 
     func sceneDidEnterBackground(_ scene: UIScene) {}
 }

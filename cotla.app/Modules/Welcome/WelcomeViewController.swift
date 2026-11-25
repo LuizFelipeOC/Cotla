@@ -163,9 +163,12 @@ final class WelcomeViewController: UIViewController {
 
         let showApp = { [weak window] in
             guard let window else { return }
-            UIView.transition(with: window, duration: 0.35, options: .transitionCrossDissolve) {
+            UIView.transition(with: window, duration: 0.35, options: .transitionCrossDissolve, animations: {
                 window.rootViewController = MainTabBarController()
-            }
+            }, completion: { _ in
+                // Acabou de entrar na conta: junta a carteira deste aparelho com a da nuvem.
+                Task { await PortfolioSync.sync(from: window.rootViewController) }
+            })
         }
 
         guard SupabaseService.client.auth.currentSession == nil else { return showApp() }

@@ -5,17 +5,39 @@
 
 import Foundation
 
-/// Carteira local: tudo fica no aparelho, nada vai para a brapi.
+/// Carteira no aparelho, que é de onde as telas leem. Com conta, cada mudança também sobe para a nuvem (`PortfolioSync`).
 enum PortfolioStore {
-    private static let key = "portfolio"
+    private static let key         = "portfolio"
+    private static let modifiedKey = "portfolioModifiedAt"
+
+    /// A carteira foi trocada pela versão da nuvem: telas abertas precisam recarregar.
+    static let didReplace = Notification.Name("PortfolioStore.didReplace")
+
+    /// Hora da última edição feita neste aparelho. nil em carteiras de antes da sincronização.
+    static var modifiedAt: Date? {
+        UserDefaults.standard.object(forKey: modifiedKey) as? Date
+    }
 
     static func all() -> [PositionEntity] {
         guard let data = UserDefaults.standard.data(forKey: key) else { return [] }
         return (try? JSONDecoder().decode([PositionEntity].self, from: data)) ?? []
     }
 
-    static func save(_ positions: [PositionEntity]) {
+    /// `touch: false` para atualizações que não são edição do usuário (cotações, proventos, rendimento),
+    /// senão um aparelho desatualizado passaria a parecer o mais recente só por ter aberto o app.
+    static func save(_ positions: [PositionEntity], touch: Bool = true) {
         UserDefaults.standard.set(try? JSONEncoder().encode(positions), forKey: key)
+        if touch {
+            UserDefaults.standard.set(Date(), forKey: modifiedKey)
+        }
+        PortfolioSync.push()
+    }
+
+    /// Versão que veio da nuvem: substitui a local sem contar como edição deste aparelho e sem subir de volta.
+    static func replace(with positions: [PositionEntity], modifiedAt: Date?) {
+        UserDefaults.standard.set(try? JSONEncoder().encode(positions), forKey: key)
+        UserDefaults.standard.set(modifiedAt, forKey: modifiedKey)
+        NotificationCenter.default.post(name: didReplace, object: nil)
     }
 
     /// Adicionar um ativo que já está na carteira soma ao que existe, recalculando o preço médio.

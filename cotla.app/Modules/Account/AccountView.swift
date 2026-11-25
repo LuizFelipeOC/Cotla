@@ -31,7 +31,7 @@ struct AccountView: View {
                 Section {
                     Button("Excluir conta", role: .destructive) { confirmDelete = true }
                 } footer: {
-                    Text("Apaga sua conta do Cotla. A carteira salva neste aparelho continua aqui.")
+                    Text("Apaga sua conta e a carteira guardada na nuvem. A carteira salva neste aparelho continua aqui.")
                 }
 
                 if let errorMessage {
@@ -53,6 +53,7 @@ struct AccountView: View {
                         // `delete_user` é uma função no banco (supabase/migrations) que apaga só o usuário logado.
                         await run {
                             try await SupabaseService.client.rpc("delete_user").execute()
+                            PortfolioSync.forgetAccount()
                             try await SupabaseService.client.auth.signOut()
                         }
                     }

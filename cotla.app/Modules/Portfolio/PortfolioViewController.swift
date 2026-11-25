@@ -30,6 +30,13 @@ class PortfolioViewController: UIViewController {
         super.viewDidLoad()
         configure()
 
+        NotificationCenter.default.addObserver(self, selector: #selector(portfolioReplaced), name: PortfolioStore.didReplace, object: nil)
+        refreshQuotes()
+    }
+
+    /// Chegou a versão da nuvem: mostra e atualiza as cotações dela.
+    @objc private func portfolioReplaced() {
+        reload()
         refreshQuotes()
     }
 
@@ -236,7 +243,12 @@ class PortfolioViewController: UIViewController {
 
     /// Logado: conta (sair, excluir). Sem conta: login.
     @objc private func showAccount() {
-        let close: () -> Void = { [weak self] in self?.dismiss(animated: true) }
+        // Entrou, saiu ou excluiu a conta: junta (ou para de enviar) a carteira de acordo.
+        let close: () -> Void = { [weak self] in
+            self?.dismiss(animated: true) {
+                Task { await PortfolioSync.sync(from: self) }
+            }
+        }
 
         let screen: UIViewController
         if let user = SupabaseService.client.auth.currentUser {
@@ -348,7 +360,7 @@ class PortfolioViewController: UIViewController {
                 }
 
                 return updated
-            })
+            }, touch: false)
 
             reload()
             refreshControl.endRefreshing()
