@@ -16,7 +16,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         
            let window = UIWindow(windowScene: windowScene)
         
-           window.rootViewController = MainTabBarController()
+           let defaults = UserDefaults.standard
+           window.overrideUserInterfaceStyle = UIUserInterfaceStyle(rawValue: defaults.integer(forKey: WelcomeViewController.themeKey)) ?? .unspecified
+           window.rootViewController = defaults.bool(forKey: WelcomeViewController.seenKey) ? MainTabBarController() : WelcomeViewController()
         
            self.window = window
            window.makeKeyAndVisible()
