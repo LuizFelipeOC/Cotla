@@ -131,17 +131,43 @@ class PortfolioViewController: UIViewController {
         footer.axis    = .vertical
         footer.spacing = 4
 
-        let stack     = UIStackView(arrangedSubviews: [captionLabel, totalLabel, footer, allocationChart])
+        let stack     = UIStackView(arrangedSubviews: [captionLabel, totalLabel, footer, allocationChart, targetsButton])
         stack.axis    = .vertical
         stack.spacing = 4
         stack.translatesAutoresizingMaskIntoConstraints = false
         stack.setCustomSpacing(10, after: totalLabel)
         stack.setCustomSpacing(16, after: footer)
+        stack.setCustomSpacing(12, after: allocationChart)
 
         return stack
     }()
 
     private let allocationChart = AllocationChartView()
+
+    private lazy var targetsButton: UIButton = {
+        var configuration                 = UIButton.Configuration.plain()
+        configuration.title               = "Metas e onde aportar"
+        configuration.image               = UIImage(systemName: "chevron.right")
+        configuration.imagePlacement      = .trailing
+        configuration.imagePadding        = 4
+        configuration.contentInsets       = .zero
+        configuration.baseForegroundColor = UIColor(named: "BrandGreen")
+        configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 12, weight: .semibold)
+
+        let button = UIButton(configuration: configuration, primaryAction: UIAction { [weak self] _ in self?.showTargets() })
+        button.contentHorizontalAlignment = .leading
+        return button
+    }()
+
+    private func showTargets() {
+        let current = positions.filter { !$0.isClosed }
+            .reduce(into: [AssetKind: Double]()) { $0[$1.kind, default: 0] += $1.currentValue }
+
+        let screen = UIHostingController(rootView: AllocationTargetsView(current: current))
+        screen.title = "Metas e aporte"
+        screen.navigationItem.largeTitleDisplayMode = .never
+        navigationController?.pushViewController(screen, animated: true)
+    }
 
     private lazy var kindControl: UISegmentedControl = {
         let control = UISegmentedControl(items: AssetKind.allCases.map(\.title))
